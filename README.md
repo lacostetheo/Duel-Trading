@@ -71,8 +71,8 @@ flowchart LR
 Requirements: [Node.js](https://nodejs.org) 18 or later.
 
 ```bash
-git clone https://github.com/lacostetheo/duel-trading.git
-cd duel-trading
+git clone https://github.com/lacostetheo/Duel-Trading.git
+cd Duel-Trading
 npm start
 # → http://localhost:3001
 ```
