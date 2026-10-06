@@ -373,23 +373,27 @@
       const rows = [...b.bids.map((r) => [...r, 'bid']), ...b.asks.map((r) => [...r, 'ask'])];
       const maxQ = Math.max(...rows.map((r) => r[1]));
       if (!maxQ) return;
-      const maxW = Math.min(140, (right - L.pad.l) * 0.28);
+      const maxW = Math.min(110, (right - L.pad.l) * 0.22);
+      // Only the biggest wall on each side gets a label.
+      const biggest = { bid: 0, ask: 0 };
+      for (const [, q, side] of rows) if (q >= b.wall) biggest[side] = Math.max(biggest[side], q);
       for (const [px, q, side] of rows) {
-        const y0 = L.Y(side === 'bid' ? px + b.step : px);
-        const y1 = L.Y(side === 'bid' ? px : px - b.step);
-        const top = Math.min(y0, y1);
-        const hh = Math.max(1, Math.abs(y1 - y0) - 1);
+        // Thin bars centred on each level: they must never hide the candles, even when the chart is zoomed in.
+        const yc = L.Y(side === 'bid' ? px + b.step / 2 : px - b.step / 2);
+        const hh = Math.max(1, Math.min(4, Math.abs(L.Y(px) - L.Y(px + b.step)) - 1));
+        const top = yc - hh / 2;
         if (top > L.bottom || top + hh < L.pad.t) continue;
         const wall = q >= b.wall;
         const ww = (q / maxQ) * maxW;
-        ctx.fillStyle = side === 'bid' ? `rgba(${C.greenRgb},${wall ? 0.4 : 0.14})` : `rgba(${C.redRgb},${wall ? 0.4 : 0.14})`;
+        ctx.fillStyle = side === 'bid' ? `rgba(${C.greenRgb},${wall ? 0.55 : 0.18})` : `rgba(${C.redRgb},${wall ? 0.55 : 0.18})`;
         ctx.fillRect(right - ww, top, ww, hh);
-        if (wall && hh >= 9) {
-          ctx.font = `700 10px ${C.num}`;
+        if (wall && q === biggest[side]) {
+          biggest[side] = Infinity;
+          ctx.font = `600 9.5px ${C.num}`;
           ctx.fillStyle = side === 'bid' ? C.up : C.down;
           ctx.textAlign = 'right';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`wall ${fr(q, 1)} BTC`, right - ww - 4, top + hh / 2);
+          ctx.textBaseline = side === 'bid' ? 'top' : 'bottom';
+          ctx.fillText(`wall ${fr(q, 1)}`, right - 2, side === 'bid' ? yc + 3 : yc - 3);
         }
       }
     }
@@ -590,44 +594,35 @@
     }
 
     // Level labels: stacked on the left edge, above the candles, never overlapping.
-    queueLabel(y, text, color) {
+    queueLabel(y, text, color, prio = 0) {
       if (!this.L || y < this.L.pad.t || y > this.L.bottom) return;
-      (this.labels || (this.labels = [])).push({ y, text, color });
+      (this.labels || (this.labels = [])).push({ y, text, color, prio });
     }
 
     flushLabels(L) {
-      const list = (this.labels || []).sort((a, b) => a.y - b.y);
+      const H = 15;
+      // Most important first; a label that would overlap one already placed is dropped (its line stays visible).
+      const list = [];
+      for (const l of (this.labels || []).sort((a, b) => b.prio - a.prio)) {
+        if (list.length < 4 && list.every((o) => Math.abs(o.y - l.y) > H + 2)) list.push({ ...l, ly: Math.min(Math.max(l.y, L.pad.t + H / 2), L.bottom - H / 2) });
+      }
       this.labels = [];
       if (!list.length) return;
       const { ctx } = this;
-      const H = 17;
-      // Push apart labels that are too close (downwards, then back up if they overflow)
-      for (let i = 1; i < list.length; i++) list[i].ly = Math.max(list[i].y, (list[i - 1].ly ?? list[i - 1].y) + H + 2);
-      list[0].ly = list[0].ly ?? list[0].y;
-      const over = list[list.length - 1].ly + H / 2 - L.bottom;
-      if (over > 0) for (const l of list) l.ly -= over;
-      ctx.font = `700 10.5px ${this.C.font}`;
+      ctx.font = `600 9.5px ${this.C.font}`;
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       for (const l of list) {
         const x = L.pad.l + 4;
-        const tw = ctx.measureText(l.text).width + 12;
-        ctx.globalAlpha = 0.92;
+        const tw = ctx.measureText(l.text).width + 10;
+        ctx.globalAlpha = 0.85;
         ctx.fillStyle = l.color;
         ctx.beginPath();
         ctx.roundRect ? ctx.roundRect(x, l.ly - H / 2, tw, H, 4) : ctx.rect(x, l.ly - H / 2, tw, H);
         ctx.fill();
         ctx.globalAlpha = 1;
-        // Small connector to the real level when the label was shifted
-        if (Math.abs(l.ly - l.y) > 2) {
-          ctx.strokeStyle = l.color;
-          ctx.beginPath();
-          ctx.moveTo(x + tw, l.ly);
-          ctx.lineTo(x + tw + 10, l.y);
-          ctx.stroke();
-        }
         ctx.fillStyle = '#fff';
-        ctx.fillText(l.text, x + 6, l.ly);
+        ctx.fillText(l.text, x + 5, l.ly);
       }
     }
 
@@ -647,13 +642,18 @@
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(x0 + 0.5, y0 + 0.5, right - x0, y1 - y0);
         ctx.setLineDash([]);
-        this.queueLabel(y0, 'Range high', `rgba(${C.accentRgb},0.9)`);
-        this.queueLabel(y1, 'Range low', `rgba(${C.accentRgb},0.9)`);
+        this.queueLabel(y0, 'Range high', `rgba(${C.accentRgb},0.9)`, 1);
+        this.queueLabel(y1, 'Range low', `rgba(${C.accentRgb},0.9)`, 1);
       }
-      // Support / resistance
-      for (const l of a.levels) {
+      // Support / resistance: levels a few pixels apart are one zone, keep the most tested one.
+      const shown = [];
+      for (const l of [...a.levels].sort((x, y) => y.touches - x.touches)) {
         const y = L.Y(l.price);
-        if (y < L.pad.t || y > L.bottom) continue;
+        if (y < L.pad.t || y > L.bottom || shown.some((o) => Math.abs(o.y - y) < 14)) continue;
+        if (shown.filter((o) => o.l.type === l.type).length >= 2) continue;
+        shown.push({ l, y });
+      }
+      for (const { l, y } of shown) {
         const col = l.type === 'resistance' ? C.down : C.up;
         ctx.strokeStyle = col;
         ctx.globalAlpha = 0.75;
@@ -666,7 +666,7 @@
         ctx.setLineDash([]);
         ctx.lineWidth = 1;
         ctx.globalAlpha = 1;
-        this.queueLabel(y, `${l.type === 'resistance' ? 'Resistance' : 'Support'} ${fr(l.price, d)} · ${l.touches}×`, col);
+        this.queueLabel(y, `${l.type === 'resistance' ? 'Resistance' : 'Support'} ${fr(l.price, d)}`, col, l.touches);
       }
       // Trend
       if (a.trend) {
