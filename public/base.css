@@ -1,0 +1,40 @@
+/* Duel — style de base : sombre, sobre, dense, façon plateforme de courtage. */
+:root {
+  --bg: #0b0e13;
+  --surface: #11151c;
+  --surface-2: #161b23;
+  --surface-3: #1d232d;
+  --border: #222833;
+  --border-strong: #2f3744;
+  --grid: #1a1f28;
+  --text: #c3cad4;
+  --strong: #e9edf2;
+  --muted: #7b8592;
+  --accent: #2f81f7;
+  --accent-rgb: 47, 129, 247;
+  --green: #22ab94;
+  --green-rgb: 34, 171, 148;
+  --red: #f23645;
+  --red-rgb: 242, 54, 69;
+  --amber: #d9a33a;
+  --amber-rgb: 217, 163, 58;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-num: 'SF Mono', ui-monospace, Menlo, Consolas, 'Roboto Mono', monospace;
+  --radius: 4px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 13px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+.muted { color: var(--muted); }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.brand-mark { display: inline-block; width: 12px; height: 12px; background: var(--accent); border-radius: 2px; }
+.panel { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.panel-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tag { font-size: 10px; font-weight: 600; padding: 1px 6px; border: 1px solid var(--border-strong); color: var(--muted); letter-spacing: .05em; border-radius: 3px; white-space: nowrap; }
+.tag.live { border-color: rgba(var(--green-rgb), .6); color: var(--green); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

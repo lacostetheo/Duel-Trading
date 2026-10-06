@@ -1,0 +1,11 @@
+# Mise en ligne gratuite sur Render (render.com) : New → Blueprint → choisir ce dépôt.
+# Région Europe : Binance refuse les connexions venant de serveurs américains.
+services:
+  - type: web
+    name: duel-trading
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
