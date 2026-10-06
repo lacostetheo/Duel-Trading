@@ -1,19 +1,23 @@
-// Défi trading : connexion à la partie (SSE), ticket d'ordre avec calcul du risque, positions, classement,
-// analyse technique.
+// DUEL client: game connection (SSE), order ticket with risk maths, positions, leaderboard and technical analysis.
 (function () {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const fr = (v, d = 2) => Number(v).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
-  const eur = (v) => `${fr(v, 2)} €`;
-  const signed = (v, suffix = ' €') => `${v >= 0 ? '+' : ''}${fr(v, 2)}${suffix}`;
+  const fr = (v, d = 2) => Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const eur = (v) => `${v < 0 ? '−' : ''}€${fr(Math.abs(v), 2)}`;
+  // Signed value: money by default (+€12.30), or a number with a suffix (+1.25%).
+  const signed = (v, suffix = '€') => (suffix === '€' ? `${v >= 0 ? '+' : '−'}€${fr(Math.abs(v), 2)}` : `${v >= 0 ? '+' : ''}${fr(v, 2)}${suffix}`);
   const cls = (v) => (v >= 0 ? 'up' : 'down');
-  // Lecture tolérante des champs : « 0,5 » (clavier français) comme « 0.5 ».
-  const num = (id) => Number(String($(id).value).replace(',', '.').replace(/[^\d.]/g, ''));
-  const setNum = (id, v, d) => { $(id).value = Number(v).toFixed(d).replace('.', ','); };
+  // Lenient number parsing: accepts "0.5", "0,5" and "112,592.5".
+  const num = (id) => {
+    const raw = String($(id).value).trim();
+    const norm = raw.includes('.') ? raw.replace(/,/g, '') : raw.replace(',', '.');
+    return Number(norm.replace(/[^\d.]/g, ''));
+  };
+  const setNum = (id, v, d) => { $(id).value = Number(v).toFixed(d); };
 
   let session = null; // { code, token, playerId, name }
   let es = null;
-  let game = null; // dernier état complet
+  let game = null; // latest full state
   let asset = null;
   let bid = null;
   let ask = null;
@@ -25,9 +29,8 @@
   let orderType = 'market'; // 'market' | 'pending'
   let spreadMult = 1;
   let book = null;
-  const seenWalls = new Map();
   let loadedCandlesFor = null;
-  // Écart entre l'horloge du serveur et celle de cet appareil (un téléphone peut avoir quelques secondes, voire minutes, d'écart).
+  // Offset between the server clock and this device's clock (a phone can be seconds or even minutes off).
   let clockOffset = 0;
   const serverNow = () => Date.now() + clockOffset;
   const syncClock = (d) => {
@@ -35,7 +38,6 @@
     return d;
   };
   const seenFeed = new Set();
-  const seenCoach = new Set();
 
   const chart = new TradeChart($('chart'), {
     digits: 2,
@@ -48,14 +50,11 @@
       if (!pos) return;
       act({ type: 'modify', id, sl: kind === 'sl' ? price : pos.sl, tp: kind === 'tp' ? price : pos.tp });
     },
-    onDrawings: (list, created) => {
-      saveDrawings(list);
-      if (created) explainDrawing(created);
-    },
+    onDrawings: (list) => saveDrawings(list),
     onTool: (tool) => setToolButtons(tool),
   });
 
-  window.__tradeChart = chart; // accès pour les tests automatisés
+  window.__tradeChart = chart; // exposed for automated tests
 
   // ------------------------------------------------------------------ Utilitaires
   function toast(text, kind = '') {
@@ -81,13 +80,13 @@
       o.connect(g).connect(ac.destination);
       o.start();
       o.stop(ac.currentTime + 0.3);
-    } catch { /* audio indisponible */ }
+    } catch { /* audio unavailable */ }
   }
 
   const store = {
-    get() { try { return JSON.parse(sessionStorage.getItem('echo.trade')); } catch { return null; } },
-    set(v) { try { sessionStorage.setItem('echo.trade', JSON.stringify(v)); } catch { /* indisponible */ } },
-    clear() { try { sessionStorage.removeItem('echo.trade'); } catch { /* indisponible */ } },
+    get() { try { return JSON.parse(sessionStorage.getItem('duel.trade')); } catch { return null; } },
+    set(v) { try { sessionStorage.setItem('duel.trade', JSON.stringify(v)); } catch { /* storage unavailable */ } },
+    clear() { try { sessionStorage.removeItem('duel.trade'); } catch { /* storage unavailable */ } },
   };
 
   async function post(url, body) {
@@ -110,7 +109,7 @@
   const me = () => game?.players.find((p) => p.id === session?.playerId);
   const myBoard = () => board.find((b) => b.id === session?.playerId);
 
-  // ------------------------------------------------------------------ Connexion à une partie
+  // ------------------------------------------------------------------ Connecting to a game
   function connect(s) {
     session = s;
     store.set(s);
@@ -127,25 +126,25 @@
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {
         store.clear();
-        toast('Partie introuvable ou terminée.', 'bad');
+        toast('Game not found or already over.', 'bad');
         showLobbyForms();
       }
     };
   }
 
   async function onRematch({ code }) {
-    if (game && (game.solo || session.playerId === game.hostId)) return; // le créateur a déjà reçu son accès
+    if (game && (game.solo || session.playerId === game.hostId)) return; // the host already received its access
     try {
       const j = await post('/api/game/join', { code, name: session.name });
       $('results').hidden = true;
       connect({ ...j, name: session.name });
-      toast('Nouvelle partie rejointe.', 'good');
+      toast('Joined the new game.', 'good');
     } catch (e) {
       toast(e.message, 'bad');
     }
   }
 
-  // ------------------------------------------------------------------ État complet
+  // ------------------------------------------------------------------ Full state
   function applyState(s) {
     const first = !game || game.code !== s.code;
     game = s;
@@ -165,7 +164,7 @@
     if (loadedCandlesFor !== s.code) {
       chart.setCandles(s.candles);
       lastCandleT = s.candles.length ? s.candles[s.candles.length - 1].t : 0;
-      runCoach(true);
+      runCoach();
       loadedCandlesFor = s.code;
     }
     if (s.bid != null) setQuote(s.bid, s.ask);
@@ -184,12 +183,12 @@
     chart.opts.digits = asset.digits;
     $('assetName').textContent = asset.name;
     $('lev').max = asset.maxLev;
-    $('lev').title = `Levier maximum : ×${asset.maxLev}`;
+    $('lev').title = `Maximum leverage: ×${asset.maxLev}`;
     const lev = Math.min(5, asset.maxLev);
     $('lev').value = lev;
     const price = game.bid || (game.candles.length ? game.candles[game.candles.length - 1].c : 1);
     const notionalPerLot = asset.eurNotional ? asset.contract : (price * asset.contract) / game.rate;
-    // Taille par défaut : environ 20 000 € d'exposition, sans jamais bloquer plus de 60 % du capital en marge.
+    // Default size: about €20,000 exposure, never locking more than 60% of equity as margin.
     const exposure = Math.min(20000, 10000 * lev * 0.6);
     setNum('lots', Math.max(0.01, Math.round((exposure / notionalPerLot) * 100) / 100), 2);
     $('pipInfo').textContent = `1 pip = ${fr(asset.pip, asset.digits)}`;
@@ -199,18 +198,18 @@
   function setSource(src) {
     const b = $('srcBadge');
     const map = {
-      live: ['TEMPS RÉEL', 'tag live'],
-      delayed: ['EN DIRECT (léger différé)', 'tag live'],
-      closed: ['MARCHÉ FERMÉ', 'tag warn'],
-      sim: ['SIMULATION', 'tag warn'],
-      error: ['SIMULATION', 'tag warn'],
+      live: ['LIVE', 'tag live'],
+      delayed: ['LIVE (slight delay)', 'tag live'],
+      closed: ['MARKET CLOSED', 'tag warn'],
+      sim: ['SIMULATED', 'tag warn'],
+      error: ['SIMULATED', 'tag warn'],
     };
     const [txt, c] = map[src] || ['—', 'tag'];
     b.textContent = txt;
     b.className = c;
   }
 
-  // ------------------------------------------------------------------ Nouveau prix
+  // ------------------------------------------------------------------ New price
   function applyTick(t) {
     checkLineCross(bid, t.bid);
     if (t.spreadMult) setSpread(t.spreadMult);
@@ -220,7 +219,7 @@
       chart.updateCandle(t.candle);
       if (t.candle.t !== lastCandleT) {
         lastCandleT = t.candle.t;
-        runCoach(false);
+        runCoach();
       }
     }
     if (t.board) {
@@ -244,7 +243,7 @@
       const ref = chart.raw.find((k) => k.t >= Math.floor(game.startedAt / 60000) * 60000) || chart.raw[0];
       if (ref && game.status !== 'lobby') {
         const chg = ((b - ref.o) / ref.o) * 100;
-        $('chg').innerHTML = `<span class="${cls(chg)}">${signed(chg, ' %')}</span> depuis le départ`;
+        $('chg').innerHTML = `<span class="${cls(chg)}">${signed(chg, '%')}</span> since start`;
       }
     }
     chart.setQuote(b, a);
@@ -254,10 +253,10 @@
     spreadMult = m;
     const el = $('spreadInfo');
     el.hidden = m < 1.3;
-    if (m >= 1.3) el.textContent = `spread ×${fr(m, 1)} (marché agité)`;
+    if (m >= 1.3) el.textContent = `spread ×${fr(m, 1)} (volatile market)`;
   }
 
-  // ------------------------------------------------------------------ Carnet d'ordres (Bitcoin)
+  // ------------------------------------------------------------------ Order book (bitcoin)
   let bookFrame = 0;
   function applyBook(b) {
     book = b;
@@ -272,7 +271,7 @@
     const b = book;
     if (!b || !asset || !asset.book) return;
     chart.setBook(b);
-    $('bookSrc').textContent = b.sim ? 'SIMULÉ' : 'BINANCE · DIRECT';
+    $('bookSrc').textContent = b.sim ? 'SIMULATED' : 'BINANCE · LIVE';
     $('bookSrc').className = b.sim ? 'tag warn' : 'tag live';
     const N = 14;
     const asks = b.asks.slice(0, N);
@@ -283,63 +282,28 @@
     $('bookAsks').innerHTML = asks.slice().reverse().map((r) => row(r, 'ask')).join('');
     $('bookBids').innerHTML = bids.map((r) => row(r, 'bid')).join('');
     const mid = (b.bestBid + b.bestAsk) / 2;
-    $('bookMid').innerHTML = `${fr(mid, 1)}<small>niveaux de ${fr(b.step, dStep)} $</small>`;
+    $('bookMid').innerHTML = `${fr(mid, 1)}<small>$${fr(b.step, dStep)} levels</small>`;
     $('imbBar').style.width = `${b.imbalance}%`;
-    $('imbBuy').textContent = `Achat ${b.imbalance} %`;
-    $('imbSell').textContent = `Vente ${100 - b.imbalance} %`;
-    bookCoach(b, mid);
+    $('imbBuy').textContent = `Bids ${b.imbalance}%`;
+    $('imbSell').textContent = `Asks ${100 - b.imbalance}%`;
   }
 
-  // Le coach signale les gros murs proches et un carnet très déséquilibré (sans répétition).
-  function bookCoach(b, mid) {
-    if (!coachOn || game?.status !== 'running') return;
-    const now = Date.now();
-    for (const [side, rows] of [['achat', b.bids], ['vente', b.asks]]) {
-      for (const [px, q] of rows) {
-        if (q < b.wall * 1.5 || Math.abs(px - mid) / mid > 0.002) continue;
-        const key = `${side}${px}`;
-        if (now - (seenWalls.get(key) || 0) < 5 * 60000) continue;
-        seenWalls.set(key, now);
-        addCoach(side === 'achat'
-          ? `Mur acheteur : ${fr(q, 1)} BTC à ${fr(px, 0)} $. Soutien tant qu’il n’est pas absorbé ou retiré.`
-          : `Mur vendeur : ${fr(q, 1)} BTC à ${fr(px, 0)} $. Résistance probable ; s’il est absorbé, la hausse peut s’accélérer.`, 'info');
-      }
-    }
-    const key = b.imbalance >= 70 ? 'imb-buy' : b.imbalance <= 30 ? 'imb-sell' : null;
-    if (key && now - (seenWalls.get(key) || 0) > 3 * 60000) {
-      seenWalls.set(key, now);
-      addCoach(key === 'imb-buy'
-        ? `Carnet déséquilibré à l’achat : ${b.imbalance} % des quantités affichées. Indice de soutien, non garanti.`
-        : `Carnet déséquilibré à la vente : ${100 - b.imbalance} % des quantités affichées.`, 'info');
-    }
-  }
-
-  // ------------------------------------------------------------------ Coach
-  function runCoach(initial) {
-    const prev = analysis;
+  // ------------------------------------------------------------------ Technical analysis
+  function runCoach() {
     analysis = Coach.analyze(chart.raw);
     chart.setAnalysis(analysis, coachOn);
     if (!analysis) return;
-    // Suggestion de SL/TP à partir de la volatilité, tant que le joueur n'a pas modifié les valeurs.
+    // Suggest SL/TP from volatility until the player edits the values.
     if (!userEditedStops && analysis.atr) {
       const minPips = Math.ceil(asset.spread / asset.pip) + 2;
       const sl = Math.max(minPips, Math.round((analysis.atr * 1.5) / asset.pip));
       $('slPips').value = sl;
       $('tpPips').value = sl * 2;
     }
-    if (initial) return;
-    for (const ev of Coach.events(prev, analysis, asset.digits)) {
-      if (seenCoach.has(ev.key)) continue;
-      seenCoach.add(ev.key);
-      addCoach(ev.text, ev.kind);
-    }
   }
 
-  // Les notes d'analyse ne sont plus affichées (l'analyse reste dessinée sur le graphique).
-  function addCoach() {}
-
-  // ------------------------------------------------------------------ Fil du direct
-  // Événements de la partie : seuls ceux qui comptent s'affichent, en notification brève.
+  // ------------------------------------------------------------------ Game events
+  // Game events: only the ones that matter are shown, as brief toasts.
   function addFeed(f, silent) {
     const key = f.id + '|' + (game?.code || '');
     if (seenFeed.has(key)) return;
@@ -369,12 +333,12 @@
     $('lobbyForms').hidden = true;
     $('waiting').hidden = false;
     $('wCode').textContent = game.code;
-    $('wPlayers').innerHTML = game.players.map((p) => `<li><i style="background:${p.color}"></i>${esc(p.name)}${p.id === game.hostId ? ' <small class="muted">créateur</small>' : ''}</li>`).join('');
-    $('wInfo').textContent = `${asset.name} · ${game.duration} minutes · 10 000 € chacun`;
+    $('wPlayers').innerHTML = game.players.map((p) => `<li><i style="background:${p.color}"></i>${esc(p.name)}${p.id === game.hostId ? ' <small class="muted">host</small>' : ''}</li>`).join('');
+    $('wInfo').textContent = `${asset.name} · ${game.duration} minutes · €10,000 each`;
     const host = session.playerId === game.hostId;
     $('btnStart').hidden = !host;
     $('wGuest').hidden = host;
-    const warn = { closed: 'Marché fermé : le prix ne bougera pas. Choisir le Bitcoin (ouvert 24 h/24) ou le mode Simulation.', error: 'Source de prix indisponible : la partie utilisera une simulation réaliste.', sim: 'Mode simulation : prix réalistes générés par ECHO.' }[game.source];
+    const warn = { closed: 'Market closed: the price will not move. Pick Bitcoin (open 24/7) or simulated prices.', error: 'Price feed unavailable: the game will use a realistic simulation.', sim: 'Simulated prices: realistic market generated by the server.' }[game.source];
     $('wWarn').hidden = !warn;
     $('wWarn').textContent = warn || '';
     if (host) {
@@ -387,17 +351,17 @@
       }
       const base = renderLobby.base;
       $('wInvite').innerHTML = base
-        ? `Lien d’invitation${renderLobby.lan ? ' (même Wi-Fi)' : ''} :<br><code>${esc(base)}/?code=${game.code}</code>`
-        : `Code à saisir dans « Rejoindre » : <b>${game.code}</b>.`;
+        ? `Invite link${renderLobby.lan ? ' (same Wi-Fi)' : ''}:<br><code>${esc(base)}/?code=${game.code}</code>`
+        : `Code to enter under “Join”: <b>${game.code}</b>.`;
     } else $('wInvite').textContent = '';
   }
 
-  // ------------------------------------------------------------------ Classement, compte, positions
+  // ------------------------------------------------------------------ Leaderboard, account, positions
   function renderBoard() {
     if (!game) return;
     const rows = game.players.map((p) => ({ ...p, b: board.find((x) => x.id === p.id) })).sort((x, y) => (y.b?.equity ?? 0) - (x.b?.equity ?? 0));
     const lead = rows.length > 1 && rows[0].b && rows[1].b && rows[0].b.equity !== rows[1].b.equity ? rows[0].id : null;
-    $('board').innerHTML = rows.map((p) => `<div class="pl-chip ${p.id === lead ? 'lead' : ''}"><i style="background:${p.color}"></i><b>${esc(p.name)}${p.id === session?.playerId ? ' (toi)' : ''}</b><span class="${cls(p.b?.pct ?? 0)}">${signed(p.b?.pct ?? 0, ' %')}</span></div>`).join('');
+    $('board').innerHTML = rows.map((p) => `<div class="pl-chip ${p.id === lead ? 'lead' : ''}"><i style="background:${p.color}"></i><b>${esc(p.name)}${p.id === session?.playerId ? ' (you)' : ''}</b><span class="${cls(p.b?.pct ?? 0)}">${signed(p.b?.pct ?? 0, '%')}</span></div>`).join('');
   }
 
   function renderAccount() {
@@ -405,14 +369,14 @@
     const p = me();
     if (!a || !p) return;
     $('accEquity').textContent = eur(a.equity);
-    $('accPct').textContent = signed(a.pct, ' %');
+    $('accPct').textContent = signed(a.pct, '%');
     $('accPct').className = cls(a.pct);
     $('accBalance').textContent = eur(a.equity - a.floating);
     $('accFloat').textContent = signed(a.floating);
     $('accFloat').className = cls(a.floating);
     $('accUsed').textContent = eur(a.used);
     $('accFree').textContent = eur(a.free);
-    $('accLevel').textContent = a.level == null ? '—' : `${fr(a.level, 0)} %`;
+    $('accLevel').textContent = a.level == null ? '—' : `${fr(a.level, 0)}%`;
     $('accLevel').className = a.level != null && a.level < 150 ? 'down' : '';
   }
 
@@ -432,15 +396,15 @@
       posKey = key;
       $('positions').innerHTML = list.map((p) => `
         <tr data-id="${p.id}">
-          <td class="side-${p.side}">${p.side === 'buy' ? 'ACHAT' : 'VENTE'}</td>
+          <td class="side-${p.side}">${p.side === 'buy' ? 'BUY' : 'SELL'}</td>
           <td>${fr(p.lots, 2)}</td><td>×${p.leverage}</td><td>${fr(p.open, d)}</td>
-          <td class="sl">${p.sl == null ? '—' : fr(p.sl, d)}${p.trail ? ' <small class="muted">suiv.</small>' : ''}</td><td>${p.tp == null ? '—' : fr(p.tp, d)}</td>
+          <td class="sl">${p.sl == null ? '—' : fr(p.sl, d)}${p.trail ? ' <small class="muted">trail</small>' : ''}</td><td>${p.tp == null ? '—' : fr(p.tp, d)}</td>
           <td class="pnl ${cls(p.pnl)}">${signed(p.pnl)}</td>
           <td><div class="mg">
-            <button class="x-btn" data-be="${p.id}" ${inProfit(p) && p.sl !== p.open ? '' : 'disabled'} title="Stop au prix d’entrée">BE</button>
-            <button class="x-btn" data-half="${p.id}" ${p.lots >= 0.02 ? '' : 'disabled'} title="Encaisser la moitié de la position">½</button>
-            <button class="x-btn ${p.trail ? 'on' : ''}" data-trail="${p.id}" title="Stop suiveur">Suiv.</button>
-            <button class="x-btn" data-close="${p.id}" title="Fermer la position">Fermer</button>
+            <button class="x-btn" data-be="${p.id}" ${inProfit(p) && p.sl !== p.open ? '' : 'disabled'} title="Move stop to entry price">BE</button>
+            <button class="x-btn" data-half="${p.id}" ${p.lots >= 0.02 ? '' : 'disabled'} title="Close half of the position">½</button>
+            <button class="x-btn ${p.trail ? 'on' : ''}" data-trail="${p.id}" title="Trailing stop">Trail</button>
+            <button class="x-btn" data-close="${p.id}" title="Close the position">Close</button>
           </div></td>
         </tr>`).join('');
     } else {
@@ -452,7 +416,7 @@
         }
       }
     }
-    // Ordres en attente (la distance change à chaque prix)
+    // Pending orders (distance changes with every price)
     $('ordersWrap').hidden = !orders.length;
     const oKey = orders.map((o) => `${o.id}:${o.price}:${o.kind}`).join('|');
     const dist = (o) => `${Math.round(Math.abs((o.side === 'buy' ? ask : bid) - o.price) / asset.pip)} pips`;
@@ -460,11 +424,11 @@
       ordKey = oKey;
       $('orders').innerHTML = orders.map((o) => `
         <tr data-id="${o.id}">
-          <td class="side-${o.side}">${o.side === 'buy' ? 'ACHAT' : 'VENTE'} ${o.kind === 'limit' ? 'LIMITE' : 'STOP'}</td>
+          <td class="side-${o.side}">${o.side === 'buy' ? 'BUY' : 'SELL'} ${o.kind === 'limit' ? 'LIMIT' : 'STOP'}</td>
           <td>${fr(o.lots, 2)}</td><td>×${o.leverage}</td><td>${fr(o.price, d)}</td>
           <td>${o.sl == null ? '—' : fr(o.sl, d)}</td><td>${o.tp == null ? '—' : fr(o.tp, d)}</td>
           <td class="dist">${dist(o)}</td>
-          <td><button class="x-btn" data-cancel="${o.id}">Annuler</button></td>
+          <td><button class="x-btn" data-cancel="${o.id}">Cancel</button></td>
         </tr>`).join('');
     } else {
       for (const o of orders) {
@@ -474,7 +438,7 @@
     }
   }
 
-  // ------------------------------------------------------------------ Ticket d'ordre : risque et conseils
+  // ------------------------------------------------------------------ Order ticket: risk maths
   function ticket() {
     const lots = Math.max(0.01, Math.round((num('lots') || 0) * 100) / 100);
     const lev = Number($('lev').value);
@@ -490,7 +454,7 @@
     const notional = asset.eurNotional ? asset.contract * lots : (price * asset.contract * lots) / rate;
     const margin = notional / lev;
     const spreadCost = (asset.spread * spreadMult * asset.contract * lots) / rate;
-    // Glissement estimé d'un ordre au marché (le serveur calcule le vrai au moment de l'exécution).
+    // Estimated market-order slippage (the server computes the real one at execution).
     const slip = pending ? 0 : estSlip(lots);
     const slipCost = (slip * asset.contract * lots) / rate;
     return { lots, lev, slOn, tpOn, slP, tpP, pipValue, notional, margin, spreadCost, slip, slipCost, pending, oPrice, risk: slOn ? slP * pipValue + spreadCost + slipCost : null, reward: tpOn ? tpP * pipValue - spreadCost - slipCost : null };
@@ -515,7 +479,7 @@
     return asset.spread * 0.5 * Math.pow(lots / (asset.depth || 20), 1.5) * spreadMult;
   }
 
-  // Type d'ordre en attente selon le prix choisi (même règle que le serveur).
+  // Pending order type for the chosen price (same rule as the server).
   function pendingKind(side, price) {
     if (!(price > 0) || bid == null) return null;
     if (side === 'buy') return price < ask ? 'limit' : price > ask ? 'stop' : null;
@@ -530,26 +494,26 @@
     const free = a?.free ?? 10000;
     $('levVal').textContent = `×${t.lev}`;
     $('levVal').className = t.lev > asset.maxLev * 0.7 ? 'hot' : '';
-    $('sizeInfo').textContent = `= ${fr(t.lots * asset.contract, asset.contract >= 100 ? 0 : 2)} ${asset.unit} · 1 pip = ${fr(t.pipValue, 2)} €`;
+    $('sizeInfo').textContent = `= ${fr(t.lots * asset.contract, asset.contract >= 100 ? 0 : 2)} ${asset.unit} · 1 pip = ${eur(t.pipValue)}`;
     const riskPct = t.risk != null ? (t.risk / equity) * 100 : null;
     const rr = t.slOn && t.tpOn ? t.tpP / t.slP : null;
     $('risk').innerHTML = `
-      <div><span>Exposition</span><b>${eur(t.notional)}</b></div>
-      <div><span>Marge bloquée</span><b class="${t.margin > free ? 'down' : ''}">${eur(t.margin)}</b></div>
-      <div><span>Perte si SL touché</span><b class="down">${t.risk == null ? 'non plafonnée' : `−${eur(t.risk)} (${fr(riskPct, 1)} %)`}</b></div>
-      <div><span>Gain si TP touché</span><b class="up">${t.reward == null ? '—' : `+${eur(Math.max(0, t.reward))}`}</b></div>
-      ${t.slip / asset.pip >= 1 ? `<div class="rr"><span>Glissement estimé (liquidité)</span><b class="down">≈ ${Math.round(t.slip / asset.pip)} pips · ${eur(t.slipCost)}</b></div>` : ''}
-      <div class="rr"><span>Ratio gain / risque</span><b class="${rr == null ? '' : rr >= 1.5 ? 'up' : 'down'}">${rr == null ? '—' : `1 pour ${fr(rr, 1)}`}</b></div>`;
+      <div><span>Exposure</span><b>${eur(t.notional)}</b></div>
+      <div><span>Margin required</span><b class="${t.margin > free ? 'down' : ''}">${eur(t.margin)}</b></div>
+      <div><span>Loss at SL</span><b class="down">${t.risk == null ? 'unlimited' : `−${eur(t.risk)} (${fr(riskPct, 1)}%)`}</b></div>
+      <div><span>Gain at TP</span><b class="up">${t.reward == null ? '—' : `+${eur(Math.max(0, t.reward))}`}</b></div>
+      ${t.slip / asset.pip >= 1 ? `<div class="rr"><span>Estimated slippage</span><b class="down">≈ ${Math.round(t.slip / asset.pip)} pips · ${eur(t.slipCost)}</b></div>` : ''}
+      <div class="rr"><span>Reward / risk</span><b class="${rr == null ? '' : rr >= 1.5 ? 'up' : 'down'}">${rr == null ? '—' : `1 : ${fr(rr, 1)}`}</b></div>`;
     if (t.pending) {
       const kb = pendingKind('buy', t.oPrice);
       const ks = pendingKind('sell', t.oPrice);
-      $('ordKind').textContent = t.oPrice > 0 ? `→ achat ${kb === 'limit' ? 'LIMITE' : kb === 'stop' ? 'STOP' : '—'} · vente ${ks === 'limit' ? 'LIMITE' : ks === 'stop' ? 'STOP' : '—'}` : '';
+      $('ordKind').textContent = t.oPrice > 0 ? `→ buy ${kb === 'limit' ? 'LIMIT' : kb === 'stop' ? 'STOP' : '—'} · sell ${ks === 'limit' ? 'LIMIT' : ks === 'stop' ? 'STOP' : '—'}` : '';
     }
     const canTrade = game?.status === 'running' && serverNow() >= game.startedAt && !me()?.liquidated;
     const pk = (side) => (t.pending ? pendingKind(side, t.oPrice) : 'market');
     $('btnBuy').disabled = !canTrade || !pk('buy');
     $('btnSell').disabled = !canTrade || !pk('sell');
-    const label = (side, k) => (k === 'market' ? (side === 'buy' ? 'ACHETER' : 'VENDRE') : `${side === 'buy' ? 'ACHAT' : 'VENTE'} ${k === 'limit' ? 'LIMITE' : k === 'stop' ? 'STOP' : ''}`);
+    const label = (side, k) => (k === 'market' ? (side === 'buy' ? 'BUY' : 'SELL') : `${side === 'buy' ? 'BUY' : 'SELL'} ${k === 'limit' ? 'LIMIT' : k === 'stop' ? 'STOP' : ''}`);
     const setBtn = (id, side, pxId, px) => {
       const k = pk(side);
       const html = `${label(side, k)}<small id="${pxId}">${fr(px, asset.digits)}</small>`;
@@ -568,114 +532,82 @@
     const tp = t.tpOn ? Number((entry + dir * t.tpP * asset.pip).toFixed(d)) : null;
     if (t.pending) {
       const r = await act({ type: 'order', side, price: entry, lots: t.lots, leverage: t.lev, sl, tp });
-      if (r) toast(`Ordre ${side === 'buy' ? 'd’achat' : 'de vente'} ${pendingKind(side, entry) === 'limit' ? 'limite' : 'stop'} placé à ${fr(entry, asset.digits)}`, 'good');
+      if (r) toast(`${side === 'buy' ? 'Buy' : 'Sell'} ${pendingKind(side, entry) === 'limit' ? 'limit' : 'stop'} order placed at ${fr(entry, asset.digits)}`, 'good');
       return;
     }
     const r = await act({ type: 'open', side, lots: t.lots, leverage: t.lev, sl, tp });
     if (r) {
-      toast(`${side === 'buy' ? 'Achat' : 'Vente'} exécuté${side === 'buy' ? '' : 'e'}`, 'good');
+      toast(`${side === 'buy' ? 'Buy' : 'Sell'} order filled`, 'good');
     }
   }
 
-  // ------------------------------------------------------------------ Résultats
+  // ------------------------------------------------------------------ Results
   function renderResults(r) {
     if (renderResults.done === game.code) return;
     renderResults.done = game.code;
     $('results').hidden = false;
     const medals = ['1', '2', '3', '4'];
     const m = r.market;
-    $('resMarket').textContent = `Pendant la partie, ${asset.name} a varié de ${signed(m.move, ' %')} (plus haut ${fr(m.high, asset.digits)}, plus bas ${fr(m.low, asset.digits)}).`;
+    $('resMarket').textContent = `During the game, ${asset.name} moved ${signed(m.move, '%')} (high ${fr(m.high, asset.digits)}, low ${fr(m.low, asset.digits)}).`;
     $('resRanking').innerHTML = r.ranking.map((p, i) => `
       <div class="rank ${i === 0 ? 'first' : ''}">
         <div class="medal">${medals[i] || ''}</div>
         <div>
-          <h3>${esc(p.name)} <em class="${cls(p.pct)}">${signed(p.pct, ' %')}</em> <small class="muted">${eur(p.equity)}</small></h3>
+          <h3>${esc(p.name)} <em class="${cls(p.pct)}">${signed(p.pct, '%')}</em> <small class="muted">${eur(p.equity)}</small></h3>
           <div class="stats">
             <span>Trades <b>${p.trades}</b></span>
-            <span>Gagnants <b>${p.winRate == null ? '—' : p.winRate + ' %'}</b></span>
-            <span>Meilleur <b>${p.best == null ? '—' : signed(p.best)}</b></span>
-            <span>Pire <b>${p.worst == null ? '—' : signed(p.worst)}</b></span>
-            <span>Avec SL <b>${p.slUsage == null ? '—' : p.slUsage + ' %'}</b></span>
-            <span>Ratio moyen <b>${p.avgRR == null ? '—' : '1 pour ' + fr(p.avgRR, 1)}</b></span>
-            <span>Perte max <b>${fr(p.maxDD, 1)} %</b></span>
+            <span>Win rate <b>${p.winRate == null ? '—' : p.winRate + '%'}</b></span>
+            <span>Best <b>${p.best == null ? '—' : signed(p.best)}</b></span>
+            <span>Worst <b>${p.worst == null ? '—' : signed(p.worst)}</b></span>
+            <span>With SL <b>${p.slUsage == null ? '—' : p.slUsage + '%'}</b></span>
+            <span>Avg reward/risk <b>${p.avgRR == null ? '—' : '1 : ' + fr(p.avgRR, 1)}</b></span>
+            <span>Max drawdown <b>${fr(p.maxDD, 1)}%</b></span>
           </div>
           <div class="badges">${p.badges.map((b) => `<span class="badge" title="${esc(b.desc)}">${esc(b.name)}</span>`).join('')}</div>
           ${p.tips.length ? `<ul class="tips">${p.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
         </div>
       </div>`).join('');
     $('btnRematch').hidden = session.playerId !== game.hostId;
-    $('btnRematch').textContent = game.solo ? 'Rejouer' : 'Revanche';
+    $('btnRematch').textContent = game.solo ? 'Play again' : 'Rematch';
     $('resRecord').hidden = true;
     if (game.solo && r.ranking[0]) saveRecord(r.ranking[0].pct);
   }
 
-  // Record personnel en solo, par actif et par durée (gardé sur cet appareil).
+  // Solo personal best, per asset and duration (stored on this device).
   function saveRecord(pct) {
     const key = `${asset.id}|${game.duration}`;
     let rec = {};
-    try { rec = JSON.parse(localStorage.getItem('echo.tradeRecords')) || {}; } catch { /* indisponible */ }
+    try { rec = JSON.parse(localStorage.getItem('duel.tradeRecords')) || {}; } catch { /* storage unavailable */ }
     const prev = rec[key];
     const el = $('resRecord');
     el.hidden = false;
     if (prev == null || pct > prev) {
       rec[key] = pct;
-      try { localStorage.setItem('echo.tradeRecords', JSON.stringify(rec)); } catch { /* indisponible */ }
+      try { localStorage.setItem('duel.tradeRecords', JSON.stringify(rec)); } catch { /* storage unavailable */ }
       el.className = 'record new';
-      el.textContent = prev == null ? `Record ${asset.name} · ${game.duration} min : ${signed(pct, ' %')}` : `Nouveau record : ${signed(pct, ' %')} (ancien : ${signed(prev, ' %')})`;
+      el.textContent = prev == null ? `Best score · ${asset.name} · ${game.duration} min: ${signed(pct, '%')}` : `New personal best: ${signed(pct, '%')} (previous: ${signed(prev, '%')})`;
     } else {
       el.className = 'record';
-      el.textContent = `Record ${asset.name} · ${game.duration} min : ${signed(prev, ' %')}`;
+      el.textContent = `Personal best · ${asset.name} · ${game.duration} min: ${signed(prev, '%')}`;
     }
   }
 
   // ------------------------------------------------------------------ Dessins d'analyse
-  const drawKey = () => `echo.drawings.${asset?.id || 'x'}`;
+  const drawKey = () => `duel.drawings.${asset?.id || 'x'}`;
   function loadDrawings() {
     let list = [];
-    try { list = JSON.parse(localStorage.getItem(drawKey())) || []; } catch { /* indisponible */ }
+    try { list = JSON.parse(localStorage.getItem(drawKey())) || []; } catch { /* storage unavailable */ }
     chart.setDrawings(list);
     setToolButtons(null);
   }
   function saveDrawings(list) {
-    try { localStorage.setItem(drawKey(), JSON.stringify(list.slice(-50))); } catch { /* indisponible */ }
+    try { localStorage.setItem(drawKey(), JSON.stringify(list.slice(-50))); } catch { /* storage unavailable */ }
   }
   function setToolButtons(tool) {
     document.querySelectorAll('#tools [data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === tool));
   }
   const pxTxt = (v) => fr(v, asset.digits);
-  // Petit retour pédagogique quand on trace une ligne.
-  function explainDrawing(d) {
-    if (d.type === 'h') {
-      // Rebond = une bougie vient au contact puis clôture du même côté ; traversée = la clôture change de côté.
-      const atr = analysis?.atr || 0;
-      const tol = Math.max(atr * 0.25, asset.pip * 3);
-      let bounces = 0;
-      let crosses = 0;
-      let side = 0;
-      let touching = false;
-      for (const k of chart.raw) {
-        const s2 = Math.sign(k.c - d.p1) || side;
-        const near = k.l - tol <= d.p1 && k.h + tol >= d.p1;
-        if (side && s2 !== side) crosses++;
-        else if (near && !touching && side) bounces++;
-        touching = near;
-        side = s2;
-      }
-      const where = bid != null && d.p1 > bid ? 'résistance' : 'support';
-      const px = pxTxt(d.p1);
-      if (crosses > bounces) addCoach(`Ligne ${px} : ${crosses} traversées pour ${bounces} rebond${bounces > 1 ? 's' : ''}. Niveau non respecté.`, 'warn');
-      else if (bounces >= 3) addCoach(`Ligne ${px} (${where}) : ${bounces} rebonds. Niveau respecté ; alerte en cas de franchissement.`, 'good');
-      else addCoach(`Ligne ${px} (${where}) : ${bounces} rebond${bounces > 1 ? 's' : ''}. Niveau peu testé.`, 'info');
-    } else if (d.type === 't') {
-      const up = d.t2 > d.t1 ? d.p2 > d.p1 : d.p1 > d.p2;
-      addCoach(up ? 'Oblique haussière : une clôture en dessous signale un affaiblissement.' : 'Oblique baissière : une clôture au-dessus signale un possible retournement.', 'info');
-    } else if (d.type === 'f') {
-      addCoach('Retracement de Fibonacci : réactions fréquentes sur 38,2 %, 50 % et 61,8 %.', 'info');
-    } else if (d.type === 'r') {
-      addCoach('Zone tracée.', 'info');
-    }
-  }
-  // Alerte quand le prix traverse une de tes lignes horizontales.
+  // Alert when the price crosses one of your horizontal lines.
   function checkLineCross(prev, cur) {
     if (prev == null || cur == null || prev === cur) return;
     for (const d of chart.drawings) {
@@ -685,14 +617,13 @@
         if (d.lastAlert && now - d.lastAlert < 30000) continue;
         d.lastAlert = now;
         const upx = cur > prev;
-        addCoach(`Franchissement ${upx ? 'haussier' : 'baissier'} de la ligne ${pxTxt(d.p1)}. Confirmation à la clôture de la bougie.`, 'warn');
-        toast(`Ligne ${pxTxt(d.p1)} franchie ${upx ? 'à la hausse' : 'à la baisse'}`);
+        toast(`Line ${pxTxt(d.p1)} crossed ${upx ? 'upward' : 'downward'}`);
         beep(upx);
       }
     }
   }
 
-  // ------------------------------------------------------------------ Minuteur et compte à rebours
+  // ------------------------------------------------------------------ Timer and countdown
   setInterval(() => {
     if (!game) return;
     const now = serverNow();
@@ -708,8 +639,8 @@
     $('timer').classList.toggle('hurry', game.status === 'running' && left < 60000);
   }, 250);
 
-  // ------------------------------------------------------------------ Événements de l'interface
-  // Bouton utilisé pour créer (e.submitter n'existe pas sur les vieux Safari).
+  // ------------------------------------------------------------------ UI events
+  // Which button submitted the form (e.submitter is missing on old Safari).
   let createMode = 'duel';
   document.querySelectorAll('#formCreate [name=go]').forEach((b) => b.addEventListener('click', () => { createMode = b.value; }));
   $('formCreate').onsubmit = async (e) => {
@@ -745,15 +676,15 @@
     const ds = b.dataset;
     if (ds.close) act({ type: 'close', id: ds.close });
     if (ds.half) act({ type: 'partial', id: ds.half });
-    if (ds.be) act({ type: 'breakeven', id: ds.be }).then((r) => r && addCoach('Stop déplacé au prix d’entrée : position sans risque (hors glissement).', 'good'));
+    if (ds.be) act({ type: 'breakeven', id: ds.be }).then((r) => r && toast('Stop moved to entry price.', 'good'));
     if (ds.trail) {
       const p = myBoard()?.positions.find((x) => x.id === ds.trail);
       if (!p) return;
       if (p.trail) { act({ type: 'trail', id: p.id, distance: null }); return; }
-      // Distance : celle du SL actuel, sinon 1,5 × la volatilité moyenne d'une bougie.
+      // Distance: the current SL distance, otherwise 1.5 × the average candle range.
       const cur = p.side === 'buy' ? bid : ask;
       const dist = Math.max(asset.pip * 3, p.sl != null ? Math.abs(cur - p.sl) : (analysis?.atr || asset.pip * 20) * 1.5);
-      act({ type: 'trail', id: p.id, distance: Number(dist.toFixed(asset.digits + 1)) }).then((r) => r && addCoach(`Stop suiveur activé à ${Math.round(dist / asset.pip)} pips du prix.`, 'good'));
+      act({ type: 'trail', id: p.id, distance: Number(dist.toFixed(asset.digits + 1)) }).then((r) => r && toast(`Trailing stop set ${Math.round(dist / asset.pip)} pips from price.`, 'good'));
     }
   };
   $('orders').onclick = (e) => {
@@ -770,7 +701,7 @@
     renderTicket();
   };
   $('btnPick').onclick = () => {
-    toast('Cliquer sur le graphique au prix voulu');
+    toast('Click the chart at the desired price');
     chart.pickPrice((price) => {
       setNum('ordPrice', price, asset.digits);
       renderTicket();
@@ -781,12 +712,12 @@
     const b = e.target.closest('button');
     if (!b) return;
     const t = ticket();
-    if (!t.slOn) { toast('Activer le stop-loss pour calculer la taille.', 'bad'); return; }
+    if (!t.slOn) { toast('Enable the stop-loss to size the position.', 'bad'); return; }
     const equity = myBoard()?.equity ?? 10000;
     const rate = game?.rate || 1.17;
     const perLot = ((t.slP * asset.pip + asset.spread * spreadMult) * asset.contract) / rate;
     let lots = Math.max(0.01, Math.floor(((equity * Number(b.dataset.risk)) / 100 / perLot) * 100) / 100);
-    // Plafond : ce que la marge libre permet avec le levier choisi.
+    // Cap: what the free margin allows at the chosen leverage.
     const free = myBoard()?.free ?? 10000;
     const perLotMargin = t.margin / t.lots;
     const maxLots = Math.floor(((free * 0.95) / perLotMargin) * 100) / 100;
@@ -795,19 +726,19 @@
     setNum('lots', lots, 2);
     renderTicket();
     toast(capped
-      ? `Taille plafonnée à ${fr(lots, 2)} lot par la marge disponible.`
-      : `Taille ajustée : ${fr(lots, 2)} lot${lots > 1 ? 's' : ''} pour risquer ${b.dataset.risk.replace('.', ',')} % au SL.`, capped ? '' : 'good');
+      ? `Size capped at ${fr(lots, 2)} lot by available margin.`
+      : `Size set to ${fr(lots, 2)} lot${lots > 1 ? 's' : ''} to risk ${b.dataset.risk}% at the stop.`, capped ? '' : 'good');
   };
-  // Indicateurs (choix mémorisés sur l'appareil)
+  // Indicators (choices remembered on this device)
   let indPrefs = { ma20: true, ma50: false, bb: false, rsi: true, vol: true, liq: true };
-  try { indPrefs = { ...indPrefs, ...JSON.parse(localStorage.getItem('echo.tradeInd') || '{}') }; } catch { /* indisponible */ }
+  try { indPrefs = { ...indPrefs, ...JSON.parse(localStorage.getItem('duel.tradeInd') || '{}') }; } catch { /* storage unavailable */ }
   chart.setIndicators(indPrefs);
   document.querySelectorAll('#indMenu input').forEach((cb) => {
     cb.checked = !!indPrefs[cb.dataset.ind];
     cb.onchange = () => {
       indPrefs[cb.dataset.ind] = cb.checked;
       chart.setIndicators(indPrefs);
-      try { localStorage.setItem('echo.tradeInd', JSON.stringify(indPrefs)); } catch { /* indisponible */ }
+      try { localStorage.setItem('duel.tradeInd', JSON.stringify(indPrefs)); } catch { /* storage unavailable */ }
     };
   });
   $('btnInd').onclick = (e) => {
@@ -835,7 +766,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'toolDel') {
-      if (!chart.deleteSelected() && chart.drawings.length && confirm('Effacer tous les dessins de ce graphique ?')) chart.clearDrawings();
+      if (!chart.deleteSelected() && chart.drawings.length && confirm('Clear all drawings on this chart?')) chart.clearDrawings();
       return;
     }
     const tool = chart.tool === b.dataset.tool ? null : b.dataset.tool;
@@ -843,8 +774,8 @@
     setToolButtons(tool);
     const touch = matchMedia('(pointer: coarse)').matches;
     if (tool) toast(touch
-      ? { h: 'Toucher le graphique au prix voulu', t: 'Glisser d’un point à l’autre', r: 'Glisser pour tracer la zone', f: 'Glisser du creux au sommet' }[tool]
-      : { h: 'Cliquer au prix de la ligne', t: 'Cliquer-glisser d’un point à l’autre', r: 'Cliquer-glisser pour tracer la zone', f: 'Cliquer-glisser du creux au sommet' }[tool]);
+      ? { h: 'Tap the chart at the desired price', t: 'Drag from one point to another', r: 'Drag to draw the zone', f: 'Drag from the low to the high' }[tool]
+      : { h: 'Click at the line price', t: 'Click and drag from one point to another', r: 'Click and drag to draw the zone', f: 'Click and drag from the low to the high' }[tool]);
   };
   $('tgCoach').onclick = () => {
     coachOn = !coachOn;
@@ -858,7 +789,7 @@
   $('btnLearn2').onclick = openLearn;
   $('btnLearnOk').onclick = () => {
     $('learn').hidden = true;
-    try { localStorage.setItem('echo.tradeLearned', '1'); } catch { /* indisponible */ }
+    try { localStorage.setItem('duel.tradeLearned', '1'); } catch { /* storage unavailable */ }
   };
   $('btnCloseRes').onclick = () => { $('results').hidden = true; };
   $('btnRematch').onclick = async () => {
@@ -880,35 +811,35 @@
     if ((e.key === 'Delete' || e.key === 'Backspace') && chart.deleteSelected()) e.preventDefault();
   });
 
-  // ------------------------------------------------------------------ Démarrage
+  // ------------------------------------------------------------------ Startup
   (async function init() {
-    // Formulaires : on passe par .elements (form.name désigne le nom du formulaire, pas le champ).
+    // Forms: use .elements (form.name is the form's own name, not the field).
     const fields = (id) => $(id).elements;
     const params = new URLSearchParams(location.search);
     if (params.get('code')) {
-      // Lien d'invitation : seul le formulaire « Rejoindre » est utile.
+      // Invite link: only the Join form is relevant.
       fields('formJoin').code.value = params.get('code');
       $('formCreate').hidden = true;
       document.querySelector('.lobby-cols').style.gridTemplateColumns = '1fr';
     }
     try {
-      const saved = localStorage.getItem('echo.tradeName');
+      const saved = localStorage.getItem('duel.tradeName');
       if (saved) { fields('formCreate').name.value = saved; fields('formJoin').name.value = saved; }
-      if (!localStorage.getItem('echo.tradeLearned')) openLearn();
-    } catch { /* indisponible */ }
-    // Derniers réglages de création (actif, durée, prix) retenus d'une partie à l'autre.
+      if (!localStorage.getItem('duel.tradeLearned')) openLearn();
+    } catch { /* storage unavailable */ }
+    // Remember the last create settings (asset, duration, prices) between games.
     try {
-      const prefs = JSON.parse(localStorage.getItem('echo.tradeCreate') || '{}');
+      const prefs = JSON.parse(localStorage.getItem('duel.tradeCreate') || '{}');
       for (const k of ['asset', 'duration', 'mode']) if (prefs[k]) fields('formCreate')[k].value = prefs[k];
-    } catch { /* indisponible */ }
+    } catch { /* storage unavailable */ }
     for (const k of ['asset', 'duration', 'mode']) {
       fields('formCreate')[k].addEventListener('change', () => {
         const f = fields('formCreate');
-        try { localStorage.setItem('echo.tradeCreate', JSON.stringify({ asset: f.asset.value, duration: f.duration.value, mode: f.mode.value })); } catch { /* indisponible */ }
+        try { localStorage.setItem('duel.tradeCreate', JSON.stringify({ asset: f.asset.value, duration: f.duration.value, mode: f.mode.value })); } catch { /* storage unavailable */ }
       });
     }
     for (const f of ['formCreate', 'formJoin']) {
-      fields(f).name.addEventListener('change', (e) => { try { localStorage.setItem('echo.tradeName', e.target.value); } catch { /* indisponible */ } });
+      fields(f).name.addEventListener('change', (e) => { try { localStorage.setItem('duel.tradeName', e.target.value); } catch { /* storage unavailable */ } });
     }
     const s = store.get();
     if (s && s.code) connect(s);

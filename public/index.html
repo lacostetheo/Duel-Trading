@@ -1,32 +1,33 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0b0e13" />
-  <title>Duel · Trading</title>
+  <meta name="description" content="DUEL — real-time multiplayer trading simulator: live prices, order book, leverage, margin and stop-loss." />
+  <title>DUEL · Trading Simulator</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="base.css" />
   <link rel="stylesheet" href="trade.css" />
 </head>
 <body class="tr">
   <header class="tr-top">
-    <a class="tr-back brand" href="/" title="Accueil"><span class="brand-mark"></span>DUEL</a>
+    <a class="tr-back brand" href="/" title="Home"><span class="brand-mark"></span>DUEL</a>
     <div class="tr-asset">
       <b id="assetName">—</b>
       <span class="tag" id="srcBadge">—</span>
     </div>
     <div class="tr-quote">
-      <span class="q-bid">Vente <b id="bid">—</b></span>
-      <span class="q-ask">Achat <b id="ask">—</b></span>
+      <span class="q-bid">Bid <b id="bid">—</b></span>
+      <span class="q-ask">Ask <b id="ask">—</b></span>
       <span class="q-chg" id="chg"></span>
-      <span class="q-spread" id="spreadInfo" hidden title="L'écart achat/vente s'élargit quand le marché s'agite : entrer ou sortir coûte plus cher."></span>
+      <span class="q-spread" id="spreadInfo" hidden title="The bid/ask spread widens when the market gets volatile: entering or exiting costs more."></span>
     </div>
     <div class="tr-timer" id="timer">--:--</div>
     <div class="tr-board" id="board"></div>
     <div class="tr-toggles">
-      <button class="chip on" id="tgCoach" title="Niveaux, range, tendance et figures détectés automatiquement">Analyse auto</button>
-      <button class="chip" id="btnLearn" title="Bases de l'analyse et des ordres">Bases</button>
+      <button class="chip on" id="tgCoach" title="Automatically detected levels, ranges, trends and candle patterns">Auto analysis</button>
+      <button class="chip" id="btnLearn" title="Charting and order basics">Basics</button>
     </div>
   </header>
 
@@ -37,26 +38,26 @@
           <button data-tf="1" class="active">1 min</button>
           <button data-tf="5">5 min</button>
         </div>
-        <div class="tools" id="tools" title="Outils de dessin">
-          <button data-tool="h" title="Ligne horizontale (support / résistance)"><svg viewBox="0 0 20 20"><line x1="2" y1="10" x2="18" y2="10"/></svg></button>
-          <button data-tool="t" title="Ligne de tendance"><svg viewBox="0 0 20 20"><line x1="3" y1="16" x2="17" y2="4"/><circle cx="3" cy="16" r="2"/><circle cx="17" cy="4" r="2"/></svg></button>
+        <div class="tools" id="tools" title="Drawing tools">
+          <button data-tool="h" title="Horizontal line (support / resistance)"><svg viewBox="0 0 20 20"><line x1="2" y1="10" x2="18" y2="10"/></svg></button>
+          <button data-tool="t" title="Trend line"><svg viewBox="0 0 20 20"><line x1="3" y1="16" x2="17" y2="4"/><circle cx="3" cy="16" r="2"/><circle cx="17" cy="4" r="2"/></svg></button>
           <button data-tool="r" title="Zone (rectangle)"><svg viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10"/></svg></button>
-          <button data-tool="f" title="Retracement de Fibonacci">Fib</button>
-          <button id="toolDel" title="Supprimer le dessin sélectionné (Suppr) — sans sélection : tout effacer"><svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/></svg></button>
+          <button data-tool="f" title="Fibonacci retracement">Fib</button>
+          <button id="toolDel" title="Delete the selected drawing (Delete key) — nothing selected: clear all"><svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/></svg></button>
         </div>
         <div class="ind-wrap">
-          <button class="chip" id="btnInd" title="Moyennes mobiles, RSI, Bollinger, volume, liquidité">Indicateurs ▾</button>
+          <button class="chip" id="btnInd" title="Moving averages, RSI, Bollinger, volume, liquidity">Indicators ▾</button>
           <div class="ind-menu" id="indMenu" hidden>
-            <label><input type="checkbox" data-ind="ma20" /> <i class="sw" style="background:#f0a500"></i> Moyenne mobile 20 <small>tendance courte</small></label>
-            <label><input type="checkbox" data-ind="ma50" /> <i class="sw" style="background:#b37feb"></i> Moyenne mobile 50 <small>tendance de fond</small></label>
-            <label><input type="checkbox" data-ind="bb" /> <i class="sw bb"></i> Bandes de Bollinger <small>volatilité, excès</small></label>
-            <label><input type="checkbox" data-ind="rsi" /> <i class="sw rsi"></i> RSI 14 <small>surachat / survente</small></label>
-            <label><input type="checkbox" data-ind="vol" /> <i class="sw vol"></i> Volume <small>force du mouvement</small></label>
-            <label><input type="checkbox" data-ind="liq" /> <i class="sw liq"></i> Zones de liquidité <small>où dorment les stops</small></label>
+            <label><input type="checkbox" data-ind="ma20" /> <i class="sw" style="background:#f0a500"></i> Moving average 20 <small>short-term trend</small></label>
+            <label><input type="checkbox" data-ind="ma50" /> <i class="sw" style="background:#b37feb"></i> Moving average 50 <small>underlying trend</small></label>
+            <label><input type="checkbox" data-ind="bb" /> <i class="sw bb"></i> Bollinger Bands <small>volatility, extremes</small></label>
+            <label><input type="checkbox" data-ind="rsi" /> <i class="sw rsi"></i> RSI 14 <small>overbought / oversold</small></label>
+            <label><input type="checkbox" data-ind="vol" /> <i class="sw vol"></i> Volume <small>strength of the move</small></label>
+            <label><input type="checkbox" data-ind="liq" /> <i class="sw liq"></i> Liquidity zones <small>where stops cluster</small></label>
           </div>
         </div>
         <div class="legend" id="legend">
-          <span class="lg sup">Support</span><span class="lg res">Résistance</span><span class="lg rng">Range</span><span class="lg trd">Tendance</span>
+          <span class="lg sup">Support</span><span class="lg res">Resistance</span><span class="lg rng">Range</span><span class="lg trd">Trend</span>
         </div>
       </div>
       <div class="tr-canvas-wrap"><canvas id="chart"></canvas></div>
@@ -64,31 +65,31 @@
 
     <aside class="tr-side">
       <section class="panel tr-ticket">
-        <h2 class="panel-title">Ordre <span class="muted" id="pipInfo"></span></h2>
+        <h2 class="panel-title">Order <span class="muted" id="pipInfo"></span></h2>
         <div class="otype" id="otype">
-          <button data-type="market" class="active" title="Exécuté tout de suite au prix du marché">Au marché</button>
-          <button data-type="pending" title="Exécuté automatiquement quand le prix atteint le niveau choisi">En attente</button>
+          <button data-type="market" class="active" title="Filled immediately at the market price">Market</button>
+          <button data-type="pending" title="Filled automatically when the price reaches your level">Pending</button>
         </div>
         <div class="field" id="pendingField" hidden>
-          <label>Prix de déclenchement <small class="muted" id="ordKind"></small></label>
+          <label>Trigger price <small class="muted" id="ordKind"></small></label>
           <div class="stepper">
             <input id="ordPrice" type="text" inputmode="decimal" autocomplete="off" />
-            <button id="btnPick" title="Choisir le prix sur le graphique"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M10 1v5M10 14v5M1 10h5M14 10h5"/></svg></button>
+            <button id="btnPick" title="Pick the price on the chart"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M10 1v5M10 14v5M1 10h5M14 10h5"/></svg></button>
           </div>
         </div>
         <div class="field">
-          <label>Taille <small class="muted" id="sizeInfo"></small></label>
+          <label>Size <small class="muted" id="sizeInfo"></small></label>
           <div class="stepper">
             <button data-lots="-0.1">−</button>
-            <input id="lots" type="text" value="0,50" inputmode="decimal" autocomplete="off" />
+            <input id="lots" type="text" value="0.50" inputmode="decimal" autocomplete="off" />
             <button data-lots="0.1">+</button>
           </div>
-          <div class="riskpick" id="riskPick" title="Calcule la taille pour que le stop-loss coûte exactement ce pourcentage du capital">
-            <span>Taille pour risquer</span><button data-risk="0.5">0,5 %</button><button data-risk="1">1 %</button><button data-risk="2">2 %</button>
+          <div class="riskpick" id="riskPick" title="Sets the size so that the stop-loss costs exactly this share of your equity">
+            <span>Size to risk</span><button data-risk="0.5">0.5%</button><button data-risk="1">1%</button><button data-risk="2">2%</button>
           </div>
         </div>
         <div class="field">
-          <label>Levier <b id="levVal">×5</b></label>
+          <label>Leverage <b id="levVal">×5</b></label>
           <input id="lev" type="range" min="1" max="10" value="5" />
         </div>
         <div class="field two">
@@ -101,44 +102,44 @@
         </div>
         <div class="risk" id="risk"></div>
         <div class="exec">
-          <button class="sell" id="btnSell">VENDRE<small id="sellPx">—</small></button>
-          <button class="buy" id="btnBuy">ACHETER<small id="buyPx">—</small></button>
+          <button class="sell" id="btnSell">SELL<small id="sellPx">—</small></button>
+          <button class="buy" id="btnBuy">BUY<small id="buyPx">—</small></button>
         </div>
       </section>
 
       <section class="panel tr-account">
-        <div class="acc-main"><span>Capital</span><b id="accEquity">10 000,00 €</b><em id="accPct">0,00 %</em></div>
+        <div class="acc-main"><span>Equity</span><b id="accEquity">€10,000.00</b><em id="accPct">0.00%</em></div>
         <div class="acc-grid">
-          <div><span>Solde</span><b id="accBalance">—</b></div>
-          <div><span>Gain/perte en cours</span><b id="accFloat">—</b></div>
-          <div><span>Marge utilisée</span><b id="accUsed">—</b></div>
-          <div><span>Marge libre</span><b id="accFree">—</b></div>
-          <div><span>Niveau de marge</span><b id="accLevel">—</b></div>
+          <div><span>Balance</span><b id="accBalance">—</b></div>
+          <div><span>Open P&amp;L</span><b id="accFloat">—</b></div>
+          <div><span>Used margin</span><b id="accUsed">—</b></div>
+          <div><span>Free margin</span><b id="accFree">—</b></div>
+          <div><span>Margin level</span><b id="accLevel">—</b></div>
         </div>
       </section>
     </aside>
 
     <section class="panel tr-book" id="bookPanel" hidden>
-      <h2 class="panel-title">Carnet d'ordres <span class="tag" id="bookSrc">—</span></h2>
-      <div class="book-head"><span>Prix</span><span>BTC</span></div>
+      <h2 class="panel-title">Order book <span class="tag" id="bookSrc">—</span></h2>
+      <div class="book-head"><span>Price</span><span>BTC</span></div>
       <div class="book" id="bookAsks"></div>
       <div class="book-mid" id="bookMid">—</div>
       <div class="book" id="bookBids"></div>
-      <div class="imb" title="Part des ordres d'achat dans le carnet affiché"><div class="imb-bar"><i id="imbBar"></i></div><div class="imb-txt"><span class="up" id="imbBuy">—</span><span class="down" id="imbSell">—</span></div></div>
+      <div class="imb" title="Share of buy orders in the displayed book"><div class="imb-bar"><i id="imbBar"></i></div><div class="imb-txt"><span class="up" id="imbBuy">—</span><span class="down" id="imbSell">—</span></div></div>
     </section>
 
     <section class="panel tr-positions">
-      <h2 class="panel-title">Mes positions <button class="link" id="btnCloseAll">Tout fermer</button></h2>
+      <h2 class="panel-title">Positions <button class="link" id="btnCloseAll">Close all</button></h2>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Sens</th><th>Lots</th><th>Levier</th><th>Entrée</th><th>SL</th><th>TP</th><th>Gain</th><th title="BE : stop au prix d’entrée · ½ : clôture partielle · Suiv. : stop suiveur">Gestion</th></tr></thead>
+          <thead><tr><th>Side</th><th>Lots</th><th>Lev.</th><th>Entry</th><th>SL</th><th>TP</th><th>P&amp;L</th><th title="BE: stop to entry price · ½: partial close · Trail: trailing stop">Manage</th></tr></thead>
           <tbody id="positions"></tbody>
         </table>
-        <p class="muted empty" id="noPos">Aucune position ouverte.</p>
+        <p class="muted empty" id="noPos">No open positions.</p>
         <div id="ordersWrap" hidden>
-          <h3 class="sub-title">Ordres en attente</h3>
+          <h3 class="sub-title">Pending orders</h3>
           <table>
-            <thead><tr><th>Type</th><th>Lots</th><th>Levier</th><th>Prix</th><th>SL</th><th>TP</th><th>Distance</th><th></th></tr></thead>
+            <thead><tr><th>Type</th><th>Lots</th><th>Lev.</th><th>Price</th><th>SL</th><th>TP</th><th>Distance</th><th></th></tr></thead>
             <tbody id="orders"></tbody>
           </table>
         </div>
@@ -146,43 +147,43 @@
     </section>
 
     <section class="panel tr-feed">
-      <h2 class="panel-title">À savoir <span class="tip-nav"><button type="button" id="tipPrev" title="Précédent">‹</button><span id="tipNum"></span><button type="button" id="tipNext" title="Suivant">›</button></span></h2>
+      <h2 class="panel-title">Did you know <span class="tip-nav"><button type="button" id="tipPrev" title="Previous">‹</button><span id="tipNum"></span><button type="button" id="tipNext" title="Next">›</button></span></h2>
       <div class="tip"><h3 id="tipTitle"></h3><p id="tipText"></p></div>
       <div class="tip-bar"><i id="tipBar"></i></div>
     </section>
   </main>
 
-  <!-- Salle d'attente : créer ou rejoindre une partie -->
+  <!-- Lobby: create or join a game -->
   <div class="tr-overlay" id="lobby">
     <div class="tr-card">
-      <div class="lobby-head"><span class="brand-mark"></span><b>DUEL</b><small class="muted">Compte démo de 10 000 € par joueur · classement à la performance</small></div>
+      <div class="lobby-head"><span class="brand-mark"></span><b>DUEL</b><small class="muted">€10,000 demo account per player · ranked by performance</small></div>
       <div id="lobbyForms">
         <div class="lobby-cols">
           <form id="formCreate" class="lobby-box">
-            <h3>Créer une partie</h3>
-            <label>Pseudo<input name="name" maxlength="16" required placeholder="Théo" /></label>
-            <label>Actif
+            <h3>Create a game</h3>
+            <label>Nickname<input name="name" maxlength="16" required placeholder="Theo" /></label>
+            <label>Market
               <select name="asset">
-                <option value="oil">Pétrole WTI (bouge beaucoup)</option>
-                <option value="brent">Pétrole Brent</option>
+                <option value="oil">WTI crude oil (very volatile)</option>
+                <option value="brent">Brent crude oil</option>
                 <option value="eurusd">EUR / USD</option>
-                <option value="gold">Or</option>
-                <option value="btc">Bitcoin (ouvert 24 h/24, 7 j/7)</option>
+                <option value="gold">Gold</option>
+                <option value="btc">Bitcoin (open 24/7)</option>
               </select></label>
-            <label>Durée
-              <select name="duration"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 heure</option></select></label>
-            <label>Prix
-              <select name="mode"><option value="live">Temps réel</option><option value="sim">Simulation (marché fermé)</option></select></label>
+            <label>Duration
+              <select name="duration"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option></select></label>
+            <label>Prices
+              <select name="mode"><option value="live">Live</option><option value="sim">Simulated (market closed)</option></select></label>
             <div class="create-btns">
-              <button class="primary" name="go" value="duel">Créer la partie</button>
-              <button name="go" value="solo" id="btnSolo">Jouer seul</button>
+              <button class="primary" name="go" value="duel">Create game</button>
+              <button name="go" value="solo" id="btnSolo">Play solo</button>
             </div>
           </form>
           <form id="formJoin" class="lobby-box">
-            <h3>Rejoindre</h3>
-            <label>Code de la partie<input name="code" inputmode="numeric" maxlength="4" required placeholder="1234" /></label>
-            <label>Pseudo<input name="name" maxlength="16" required placeholder="Lucas" /></label>
-            <button class="primary">Rejoindre</button>
+            <h3>Join</h3>
+            <label>Game code<input name="code" inputmode="numeric" maxlength="4" required placeholder="1234" /></label>
+            <label>Nickname<input name="name" maxlength="16" required placeholder="Lucas" /></label>
+            <button class="primary">Join game</button>
           </form>
         </div>
       </div>
@@ -192,11 +193,11 @@
         <p class="warn" id="wWarn" hidden></p>
         <ul class="players" id="wPlayers"></ul>
         <p class="muted" id="wInfo"></p>
-        <button class="primary big" id="btnStart" hidden>Lancer la partie</button>
-        <p class="muted" id="wGuest" hidden>En attente du lancement par le créateur…</p>
+        <button class="primary big" id="btnStart" hidden>Start game</button>
+        <p class="muted" id="wGuest" hidden>Waiting for the host to start…</p>
       </div>
       <p class="err" id="lobbyErr"></p>
-      <button class="link" id="btnLearn2">Bases : bougies, niveaux, ordres</button>
+      <button class="link" id="btnLearn2">Basics: candles, levels, orders</button>
     </div>
   </div>
 
@@ -204,70 +205,70 @@
 
   <div class="tr-overlay" id="results" hidden>
     <div class="tr-card wide">
-      <h2>Résultats</h2>
+      <h2>Results</h2>
       <div id="resMarket" class="muted"></div>
       <p id="resRecord" class="record" hidden></p>
       <div id="resRanking" class="ranking"></div>
       <div class="res-actions">
-        <button class="primary" id="btnRematch" hidden>Revanche</button>
-        <button id="btnCloseRes">Voir le graphique</button>
-        <a class="btn" href="/">Nouvelle partie</a>
+        <button class="primary" id="btnRematch" hidden>Rematch</button>
+        <button id="btnCloseRes">View chart</button>
+        <a class="btn" href="/">New game</a>
       </div>
     </div>
   </div>
 
   <div class="tr-overlay" id="learn" hidden>
     <div class="tr-card wide learn">
-      <h2>Bases</h2>
+      <h2>Basics</h2>
       <div class="lessons">
         <div class="lesson">
           <svg viewBox="0 0 120 120" class="candle-svg">
             <line x1="35" y1="10" x2="35" y2="110" class="wick" /><rect x="22" y="30" width="26" height="55" class="up" />
             <line x1="85" y1="10" x2="85" y2="110" class="wick" /><rect x="72" y="35" width="26" height="50" class="down" />
           </svg>
-          <h4>Lire une bougie</h4>
-          <p>Chaque bougie = 1 minute. <b class="up">Verte</b> : le prix a monté (fermeture au-dessus de l'ouverture). <b class="down">Rouge</b> : il a baissé. Les <b>mèches</b> montent au plus haut et descendent au plus bas atteints.</p>
+          <h4>Reading a candle</h4>
+          <p>Each candle = 1 minute. <b class="up">Green</b>: the price rose (close above open). <b class="down">Red</b>: it fell. The <b>wicks</b> reach the highest and lowest prices traded.</p>
         </div>
         <div class="lesson">
           <svg viewBox="0 0 120 120"><line x1="0" y1="30" x2="120" y2="30" class="res" /><line x1="0" y1="90" x2="120" y2="90" class="sup" /><polyline points="5,85 25,35 45,85 65,35 85,85 105,35" class="px" /></svg>
-          <h4>Support, résistance, range</h4>
-          <p>Un <b>support</b> est un niveau où le prix rebondit vers le haut, une <b>résistance</b> un niveau où il bute. Entre les deux, le prix fait le yoyo : c'est un <b>range</b>. Acheter près du support, vendre près de la résistance… jusqu’à la cassure.</p>
+          <h4>Support, resistance, range</h4>
+          <p>A <b>support</b> is a level where the price bounces up, a <b>resistance</b> a level where it stalls. In between, the price swings back and forth: a <b>range</b>. Buy near support, sell near resistance — until the breakout.</p>
         </div>
         <div class="lesson">
           <svg viewBox="0 0 120 120"><polyline points="5,100 30,80 45,88 70,55 85,62 115,20" class="px" /><line x1="5" y1="105" x2="115" y2="30" class="trd" /></svg>
-          <h4>Tendance</h4>
-          <p>Des sommets et des creux de plus en plus hauts = <b>tendance haussière</b>. Plus bas = <b>baissière</b>. Trader dans le sens de la tendance est plus simple.</p>
+          <h4>Trend</h4>
+          <p>Higher highs and higher lows = <b>uptrend</b>. Lower highs and lower lows = <b>downtrend</b>. Trading in the direction of the trend is easier.</p>
         </div>
         <div class="lesson">
           <svg viewBox="0 0 120 120"><line x1="0" y1="30" x2="120" y2="30" class="tp" /><line x1="0" y1="65" x2="120" y2="65" class="entry" /><line x1="0" y1="85" x2="120" y2="85" class="sl" /></svg>
-          <h4>SL, TP et levier</h4>
-          <p>Le <b>stop-loss</b> ferme la position si le marché part dans le mauvais sens, le <b>take-profit</b> encaisse le gain. Viser un gain au moins 1,5 fois supérieur au risque. Le <b>levier</b> multiplie gains ET pertes : ×10 : une baisse de 1 % coûte 10 % de la mise.</p>
+          <h4>SL, TP and leverage</h4>
+          <p>The <b>stop-loss</b> closes the position if the market moves against you, the <b>take-profit</b> locks in the gain. Aim for a reward at least 1.5 times the risk. <b>Leverage</b> multiplies gains AND losses: at ×10, a 1% drop costs 10% of the margin.</p>
         </div>
       </div>
-      <h2 class="learn-sub">Outils</h2>
+      <h2 class="learn-sub">Tools</h2>
       <div class="lessons">
         <div class="lesson">
           <svg viewBox="0 0 120 120"><rect x="0" y="0" width="120" height="30" class="zone-hi" /><rect x="0" y="90" width="120" height="30" class="zone-lo" /><polyline points="5,70 25,40 40,20 55,12 70,35 85,80 100,100 115,85" class="px" /></svg>
           <h4>RSI</h4>
-          <p>Mesure la vitesse des derniers mouvements, de 0 à 100. <b>Au-dessus de 70</b> : surachat, la hausse s’essouffle peut-être. <b>Sous 30</b> : survente. Ce n’est pas un signal seul : en forte tendance, le RSI peut rester extrême longtemps.</p>
+          <p>Measures the speed of recent moves, from 0 to 100. <b>Above 70</b>: overbought, the rally may be running out of steam. <b>Below 30</b>: oversold. Not a signal on its own: in a strong trend, RSI can stay extreme for a long time.</p>
         </div>
         <div class="lesson">
           <svg viewBox="0 0 120 120"><polyline points="5,95 25,85 45,80 65,60 85,45 115,30" class="ma1" /><polyline points="5,80 35,82 65,72 95,58 115,50" class="ma2" /></svg>
-          <h4>Moyennes mobiles et Bollinger</h4>
-          <p>La <b>moyenne 20</b> suit la tendance courte, la <b>50</b> la tendance de fond. Prix au-dessus = acheteurs aux commandes ; quand la 20 croise la 50, la dynamique change. Les <b>bandes de Bollinger</b> s’écartent quand ça s’agite et se resserrent avant les gros mouvements.</p>
+          <h4>Moving averages and Bollinger</h4>
+          <p>The <b>20 MA</b> follows the short-term trend, the <b>50 MA</b> the underlying one. Price above them = buyers in control; when the 20 crosses the 50, momentum shifts. <b>Bollinger Bands</b> widen in volatile markets and tighten before big moves.</p>
         </div>
         <div class="lesson">
           <svg viewBox="0 0 120 120"><rect x="60" y="10" width="55" height="10" class="ask" /><rect x="80" y="24" width="35" height="10" class="ask" /><rect x="30" y="38" width="85" height="10" class="ask" /><rect x="70" y="72" width="45" height="10" class="bid" /><rect x="15" y="86" width="100" height="10" class="bid" /><rect x="90" y="100" width="25" height="10" class="bid" /></svg>
-          <h4>Carnet d’ordres et liquidité</h4>
-          <p>Le carnet montre qui veut acheter (vert) et vendre (rouge) à chaque prix. Un gros <b>mur</b> freine le prix. Plus l’ordre est gros, plus il « mange » de niveaux : c’est le <b>glissement</b>. Les <b>zones de liquidité</b> sont là où dorment les stops, et le prix va souvent les chercher.</p>
+          <h4>Order book and liquidity</h4>
+          <p>The book shows who wants to buy (green) and sell (red) at each price. A large <b>wall</b> slows the price down. The bigger the order, the more levels it “eats”: that is <b>slippage</b>. <b>Liquidity zones</b> are where stops cluster, and price often goes looking for them.</p>
         </div>
         <div class="lesson">
           <svg viewBox="0 0 120 120"><polyline points="5,30 30,50 50,75 65,88 80,70 115,35" class="px" /><line x1="0" y1="85" x2="120" y2="85" class="pend" /><line x1="0" y1="60" x2="120" y2="60" class="entry" /></svg>
-          <h4>Ordres en attente et gestion</h4>
-          <p><b>Limite</b> : acheter moins cher (sur un support) ou vendre plus haut. <b>Stop</b> : entrer sur une cassure. Une fois en gain : <b>stop au prix d’entrée</b> (plus de perte possible), <b>½</b> pour encaisser la moitié, <b>stop suiveur</b> pour laisser courir.</p>
+          <h4>Pending orders and management</h4>
+          <p><b>Limit</b>: buy cheaper (at support) or sell higher. <b>Stop</b>: enter on a breakout. Once in profit: <b>stop to entry</b> (no more loss possible), <b>½</b> to bank half, <b>trailing stop</b> to let the winner run.</p>
         </div>
       </div>
-      <div class="res-actions"><button class="primary" id="btnLearnOk">Fermer</button></div>
+      <div class="res-actions"><button class="primary" id="btnLearnOk">Close</button></div>
     </div>
   </div>
 

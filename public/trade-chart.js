@@ -1,9 +1,9 @@
-// Graphique en bougies du défi trading (canvas, aucune dépendance).
-// Redessin uniquement à la demande (nouveau prix, survol, glisser-déposer) pour rester fluide.
+// Candlestick chart (canvas, no dependencies).
+// Redraws only on demand (new price, hover, drag) to stay smooth.
 (function () {
   const MIN = 60000;
   const FIB = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-  const fr = (v, d) => Number(v).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fr = (v, d) => Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
   class TradeChart {
     constructor(canvas, opts) {
@@ -17,22 +17,22 @@
       this.bid = null;
       this.ask = null;
       this.positions = [];
-      this.orders = []; // ordres en attente
-      this.book = null; // carnet d'ordres agrégé (Bitcoin)
+      this.orders = []; // pending orders
+      this.book = null; // aggregated order book (bitcoin)
       this.ind = { ma20: false, ma50: false, bb: false, rsi: true, vol: true, liq: true };
-      this.calc = null; // indicateurs calculés sur les bougies affichées
-      this.pick = null; // choix d'un prix au clic (ordre en attente)
+      this.calc = null; // indicators computed on the displayed candles
+      this.pick = null; // pick a price by clicking (pending order)
       this.analysis = null;
       this.showCoach = true;
       this.hover = null;
       this.drag = null;
-      // Dessins de l'utilisateur, en coordonnées marché (heure, prix) pour suivre le zoom et l'unité de temps.
+      // User drawings, in market coordinates (time, price) so they follow zoom and timeframe.
       this.drawings = [];
-      this.tool = null; // 'h' ligne horizontale, 't' tendance, 'r' zone, 'f' Fibonacci
-      this.draft = null; // dessin en cours de tracé
-      this.placing = false; // tracé en deux clics
+      this.tool = null; // 'h' horizontal line, 't' trend line, 'r' zone, 'f' Fibonacci
+      this.draft = null; // drawing in progress
+      this.placing = false; // two-click drawing
       this.selected = -1;
-      this.edit = null; // déplacement d'un dessin ou d'une poignée
+      this.edit = null; // moving a drawing or a handle
       this.frame = 0;
       this.colors();
       this.resize();
@@ -68,7 +68,7 @@
       });
     }
 
-    // ------------------------------------------------------------------ Données
+    // ------------------------------------------------------------------ Data
     setCandles(list) {
       this.raw = list.slice();
       this.aggregate();
@@ -127,7 +127,7 @@
       this.request();
     }
 
-    // Prochain clic sur le graphique = choix d'un prix (null pour annuler).
+    // Next click on the chart picks a price (null to cancel).
     pickPrice(cb) {
       this.pick = cb;
       this.canvas.style.cursor = cb ? 'copy' : 'crosshair';
@@ -162,7 +162,7 @@
     }
 
     setPositions(list) {
-      if (this.drag) return; // ne pas perturber un glisser en cours
+      if (this.drag) return; // do not disturb a drag in progress
       this.positions = list;
       this.request();
     }
@@ -173,18 +173,18 @@
       this.request();
     }
 
-    // ------------------------------------------------------------------ Géométrie
+    // ------------------------------------------------------------------ Geometry
     layout() {
       const pad = { l: 8, r: 76, t: 14, b: 24 };
       const c = this.candles.slice(-this.visible);
       if (!c.length) return null;
-      const first = this.candles.length - c.length; // index de la 1re bougie visible dans this.candles
-      // Panneau RSI sous le graphique principal
+      const first = this.candles.length - c.length; // index of the first visible candle in this.candles
+      // RSI pane below the main chart
       const rsiH = this.calc && this.calc.rsi ? Math.round(Math.min(130, Math.max(60, this.h * 0.2))) : 0;
       const bottom = this.h - pad.b - (rsiH ? rsiH + 10 : 0);
       let min = Math.min(...c.map((k) => k.l));
       let max = Math.max(...c.map((k) => k.h));
-      // Bandes de Bollinger et moyennes visibles entièrement
+      // Keep Bollinger Bands and moving averages fully visible
       if (this.calc) {
         for (const arr of [this.calc.bb && this.calc.bb.up, this.calc.bb && this.calc.bb.dn, this.calc.ma20, this.calc.ma50]) {
           if (!arr) continue;
@@ -195,7 +195,7 @@
           }
         }
       }
-      // Inclure les lignes de positions proches pour qu'elles restent visibles.
+      // Include nearby position lines so they stay visible.
       for (const p of [...this.positions, ...this.orders.map((o) => ({ open: o.price, sl: o.sl, tp: o.tp }))]) {
         for (const v of [p.open, p.sl, p.tp]) {
           if (v == null) continue;
@@ -211,14 +211,14 @@
       max += span * 0.08;
       const plotW = this.w - pad.l - pad.r;
       const step = plotW / this.visible;
-      const offset = this.visible - c.length; // bougies manquantes à gauche
+      const offset = this.visible - c.length; // missing candles on the left
       return {
         pad, c, min, max, step, offset, first, bottom, rsiH,
         X: (i) => pad.l + (i + offset + 0.5) * step,
         Y: (v) => pad.t + (1 - (v - min) / (max - min)) * (bottom - pad.t),
         V: (y) => min + (1 - (y - pad.t) / (bottom - pad.t)) * (max - min),
         TX: (t) => {
-          // position x d'un horodatage (pour les dessins du coach)
+          // x position of a timestamp (for analysis overlays)
           const first = c[0].t;
           const span2 = this.tf * MIN;
           return pad.l + ((t - first) / span2 + offset + 0.5) * step;
@@ -238,7 +238,7 @@
       const { pad, c, X, Y } = L;
       const right = w - pad.r;
 
-      // Grille et échelle de prix
+      // Grid and price scale
       ctx.font = `500 11px ${C.num}`;
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = C.border;
@@ -257,14 +257,14 @@
         const y = pad.t + ((L.bottom - pad.t) * i) / ticks;
         ctx.fillText(fr(L.V(y), d), right + 8, y);
       }
-      // Heures
+      // Time labels
       ctx.textAlign = 'center';
       const every = Math.max(1, Math.round(90 / L.step / 5)) * 5;
       c.forEach((k, i) => {
         const dt = new Date(k.t);
         if ((dt.getMinutes() % (every * this.tf)) === 0 || i === 0) {
           const x = X(i);
-          if (x > pad.l + 20 && x < right - 20) ctx.fillText(dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), x, h - 10);
+          if (x > pad.l + 20 && x < right - 20) ctx.fillText(dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), x, h - 10);
         }
       });
 
@@ -274,7 +274,7 @@
       if (this.showCoach && this.analysis) this.drawCoach(L);
       this.drawOverlays(L);
 
-      // Bougies
+      // Candles
       const bw = Math.max(1, L.step * 0.7);
       for (let i = 0; i < c.length; i++) {
         const k = c[i];
@@ -294,22 +294,22 @@
       this.drawDrawings(L);
       this.flushLabels(L);
 
-      // Positions : entrée, SL, TP ; ordres en attente
+      // Positions (entry, SL, TP) and pending orders
       for (const p of this.positions) this.drawPosition(L, p);
       for (const o of this.orders) this.drawOrder(L, o);
       if (L.rsiH) this.drawRsi(L);
 
-      // Prix actuel (vente / achat)
+      // Current bid / ask
       if (this.bid != null) {
         this.hLine(Y(this.bid), C.down, [2, 3], fr(this.bid, d), C.down);
         if (this.ask != null) this.hLine(Y(this.ask), C.up, [2, 3], fr(this.ask, d), C.up, true);
       }
 
-      // Réticule
+      // Crosshair
       if (this.hover && !this.drag) this.drawCrosshair(L);
     }
 
-    // Moyennes mobiles et bandes de Bollinger
+    // Moving averages and Bollinger Bands
     drawOverlays(L) {
       const k = this.calc;
       if (!k) return;
@@ -333,7 +333,7 @@
         ctx.lineWidth = 1;
       };
       if (k.bb) {
-        // Remplissage entre les bandes
+        // Fill between the bands
         ctx.fillStyle = `rgba(${this.C.accentRgb},0.06)`;
         ctx.beginPath();
         const idx = [];
@@ -349,7 +349,7 @@
       line(k.ma50, '#b37feb', 1.8);
     }
 
-    // Volume : barres discrètes en bas du graphique principal
+    // Volume: subtle bars at the bottom of the main chart
     drawVolume(L) {
       const { ctx, C } = this;
       const vols = L.c.map((k) => k.v || 0);
@@ -365,7 +365,7 @@
       }
     }
 
-    // Profondeur du carnet d'ordres : histogramme horizontal le long de l'échelle de prix
+    // Order-book depth: horizontal histogram along the price scale
     drawDepth(L) {
       const { ctx, C } = this;
       const b = this.book;
@@ -389,16 +389,16 @@
           ctx.fillStyle = side === 'bid' ? C.up : C.down;
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`mur ${fr(q, 1)} BTC`, right - ww - 4, top + hh / 2);
+          ctx.fillText(`wall ${fr(q, 1)} BTC`, right - ww - 4, top + hh / 2);
         }
       }
     }
 
-    // Zones de liquidité (stops accumulés au-dessus des sommets / sous les creux)
+    // Liquidity zones (stops clustered above highs / below lows)
     drawLiquidity(L) {
       const { ctx, C } = this;
       const right = this.w - L.pad.r;
-      const band = (this.analysis.atr || 0) * 0.15; // en prix (la hauteur minimale de 4 px est gérée plus bas)
+      const band = (this.analysis.atr || 0) * 0.15; // in price units (the 4 px minimum height is handled below)
       for (const z of this.analysis.liquidity) {
         const x0 = Math.max(L.pad.l, L.TX(z.from));
         const y0 = L.Y(z.price + (z.side === 'above' ? band : 0));
@@ -416,11 +416,11 @@
         ctx.lineTo(right, yl);
         ctx.stroke();
         ctx.setLineDash([]);
-        this.queueLabel(yl, `Liquidité${z.count > 1 ? ` ×${z.count}` : ''} ${fr(z.price, this.opts.digits)}`, 'rgb(14,116,164)');
+        this.queueLabel(yl, `Liquidity${z.count > 1 ? ` ×${z.count}` : ''} ${fr(z.price, this.opts.digits)}`, 'rgb(14,116,164)');
       }
     }
 
-    // Panneau RSI
+    // RSI pane
     drawRsi(L) {
       const { ctx, C } = this;
       const right = this.w - L.pad.r;
@@ -470,7 +470,7 @@
         ctx.fillText(fr(last, 0), right + 7, Yr(last));
         ctx.fillStyle = C.muted;
         ctx.font = `600 10px ${C.font}`;
-        ctx.fillText(`RSI 14${last >= 70 ? ' · surachat' : last <= 30 ? ' · survente' : ''}`, L.pad.l + 6, top + 9);
+        ctx.fillText(`RSI 14${last >= 70 ? ' · overbought' : last <= 30 ? ' · oversold' : ''}`, L.pad.l + 6, top + 9);
       }
     }
 
@@ -491,7 +491,7 @@
       ctx.moveTo(L.pad.l, y);
       ctx.lineTo(right, y);
       ctx.stroke();
-      // SL / TP rattachés (plus discrets)
+      // Attached SL / TP (more subtle)
       ctx.lineWidth = 1;
       ctx.setLineDash([1, 4]);
       for (const [v, c2] of [[o.sl, C.down], [o.tp, C.up]]) {
@@ -504,13 +504,13 @@
       }
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
-      const label = `${buy ? 'ACHAT' : 'VENTE'} ${o.kind === 'limit' ? 'LIMITE' : 'STOP'} ${fr(o.lots, 2)} @ ${fr(price, d)} ⇕`;
+      const label = `${buy ? 'BUY' : 'SELL'} ${o.kind === 'limit' ? 'LIMIT' : 'STOP'} ${fr(o.lots, 2)} @ ${fr(price, d)} ⇕`;
       ctx.font = `700 11px ${C.font}`;
       const tw = ctx.measureText(label).width + 12;
       ctx.fillStyle = C.surface;
       ctx.strokeStyle = col;
       ctx.beginPath();
-      const x0 = right - 6 - tw; // à droite, comme les positions (le bord gauche est réservé aux niveaux)
+      const x0 = right - 6 - tw; // on the right, like positions (the left edge is reserved for levels)
       ctx.roundRect ? ctx.roundRect(x0, y - 9, tw, 18, 4) : ctx.rect(x0, y - 9, tw, 18);
       ctx.fill();
       ctx.stroke();
@@ -545,7 +545,7 @@
       const { ctx } = this;
       ctx.font = `700 11px ${this.C.font}`;
       const tw = ctx.measureText(text).width + 12;
-      if (this.L) x = Math.max(x, this.L.pad.l + tw); // ne jamais sortir à gauche (petits écrans)
+      if (this.L) x = Math.max(x, this.L.pad.l + tw); // never overflow on the left (small screens)
       ctx.fillStyle = bg;
       ctx.beginPath();
       ctx.roundRect ? ctx.roundRect(x - tw, y - 9, tw, 18, 4) : ctx.rect(x - tw, y - 9, tw, 18);
@@ -571,8 +571,8 @@
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.lineWidth = 1;
-      const pnl = p.pnl != null ? ` ${p.pnl >= 0 ? '+' : ''}${fr(p.pnl, 2)} €` : '';
-      this.tag(right - 6, y, `${buy ? 'ACHAT' : 'VENTE'} ${fr(p.lots, 2)} ×${p.leverage}${pnl}`, buy ? C.up : C.down);
+      const pnl = p.pnl != null ? ` ${p.pnl >= 0 ? '+' : '−'}€${fr(Math.abs(p.pnl), 2)}` : '';
+      this.tag(right - 6, y, `${buy ? 'BUY' : 'SELL'} ${fr(p.lots, 2)} ×${p.leverage}${pnl}`, buy ? C.up : C.down);
       for (const kind of ['sl', 'tp']) {
         const v = this.drag && this.drag.id === p.id && this.drag.kind === kind ? this.drag.price : p[kind];
         if (v == null) continue;
@@ -585,11 +585,11 @@
         ctx.lineTo(right, yy);
         ctx.stroke();
         ctx.lineWidth = 1;
-        this.tag(this.w - L.pad.r - 6, yy, `${kind === 'sl' && p.trail ? 'SL SUIVEUR' : kind.toUpperCase()} ${fr(v, d)}${kind === 'sl' && p.trail ? '' : ' ⇕'}`, col);
+        this.tag(this.w - L.pad.r - 6, yy, `${kind === 'sl' && p.trail ? 'TRAILING SL' : kind.toUpperCase()} ${fr(v, d)}${kind === 'sl' && p.trail ? '' : ' ⇕'}`, col);
       }
     }
 
-    // Étiquettes des niveaux : rangées sur le bord gauche, par-dessus les bougies, sans se chevaucher.
+    // Level labels: stacked on the left edge, above the candles, never overlapping.
     queueLabel(y, text, color) {
       if (!this.L || y < this.L.pad.t || y > this.L.bottom) return;
       (this.labels || (this.labels = [])).push({ y, text, color });
@@ -601,7 +601,7 @@
       if (!list.length) return;
       const { ctx } = this;
       const H = 17;
-      // Écarte les étiquettes trop proches (vers le bas puis on remonte si on déborde)
+      // Push apart labels that are too close (downwards, then back up if they overflow)
       for (let i = 1; i < list.length; i++) list[i].ly = Math.max(list[i].y, (list[i - 1].ly ?? list[i - 1].y) + H + 2);
       list[0].ly = list[0].ly ?? list[0].y;
       const over = list[list.length - 1].ly + H / 2 - L.bottom;
@@ -618,7 +618,7 @@
         ctx.roundRect ? ctx.roundRect(x, l.ly - H / 2, tw, H, 4) : ctx.rect(x, l.ly - H / 2, tw, H);
         ctx.fill();
         ctx.globalAlpha = 1;
-        // Petit trait vers le vrai niveau si l'étiquette a été décalée
+        // Small connector to the real level when the label was shifted
         if (Math.abs(l.ly - l.y) > 2) {
           ctx.strokeStyle = l.color;
           ctx.beginPath();
@@ -647,10 +647,10 @@
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(x0 + 0.5, y0 + 0.5, right - x0, y1 - y0);
         ctx.setLineDash([]);
-        this.queueLabel(y0, 'Haut du range', `rgba(${C.accentRgb},0.9)`);
-        this.queueLabel(y1, 'Bas du range', `rgba(${C.accentRgb},0.9)`);
+        this.queueLabel(y0, 'Range high', `rgba(${C.accentRgb},0.9)`);
+        this.queueLabel(y1, 'Range low', `rgba(${C.accentRgb},0.9)`);
       }
-      // Supports / résistances
+      // Support / resistance
       for (const l of a.levels) {
         const y = L.Y(l.price);
         if (y < L.pad.t || y > L.bottom) continue;
@@ -666,9 +666,9 @@
         ctx.setLineDash([]);
         ctx.lineWidth = 1;
         ctx.globalAlpha = 1;
-        this.queueLabel(y, `${l.type === 'resistance' ? 'Résistance' : 'Support'} ${fr(l.price, d)} · ${l.touches}×`, col);
+        this.queueLabel(y, `${l.type === 'resistance' ? 'Resistance' : 'Support'} ${fr(l.price, d)} · ${l.touches}×`, col);
       }
-      // Tendance
+      // Trend
       if (a.trend) {
         const x0 = L.TX(a.trend.t0);
         const x1 = L.TX(a.trend.t1);
@@ -684,7 +684,7 @@
         ctx.setLineDash([]);
         ctx.lineWidth = 1;
       }
-      // Figures de bougies
+      // Candle patterns
       ctx.font = `700 10px ${C.font}`;
       ctx.textAlign = 'center';
       for (const p of a.patterns) {
@@ -697,11 +697,11 @@
         ctx.beginPath();
         if (bear) { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y - 4); ctx.lineTo(x, y + 2); } else { ctx.moveTo(x - 4, y + 4); ctx.lineTo(x + 4, y + 4); ctx.lineTo(x, y - 2); }
         ctx.fill();
-        // Nom de la figure : affiché au survol de la bougie (réticule), pas sur le graphique.
+        // Pattern name: shown in the crosshair readout on hover, not on the chart.
       }
     }
 
-    // ------------------------------------------------------------------ Dessins de l'utilisateur
+    // ------------------------------------------------------------------ User drawings
     setDrawings(list) {
       this.drawings = Array.isArray(list) ? list.slice() : [];
       this.selected = -1;
@@ -751,7 +751,7 @@
       return L.c[0].t + ((x - L.pad.l) / L.step - L.offset - 0.5) * this.tf * MIN;
     }
 
-    // Point marché sous le pointeur, aimanté sur l'ouverture / plus haut / plus bas / clôture de la bougie proche.
+    // Market point under the pointer, snapped to the nearby candle's open / high / low / close.
     pointAt(L, x, y) {
       const i = Math.round((x - L.pad.l) / L.step - 0.5 - L.offset);
       const k = L.c[i];
@@ -844,7 +844,7 @@
       });
       ctx.restore();
       ctx.lineWidth = 1;
-      // Étiquettes des lignes horizontales sur l'échelle de prix
+      // Horizontal-line labels on the price scale
       for (const d of list) {
         if (d.type !== 'h') continue;
         const y = L.Y(d.p1);
@@ -858,7 +858,7 @@
       }
     }
 
-    // Dessin sous le pointeur : { i, handle } (handle = 0 ou 1 pour une extrémité, null pour le corps).
+    // Drawing under the pointer: { i, handle } (handle = 0 or 1 for an end point, null for the body).
     hitDrawing(x, y) {
       const L = this.L;
       if (!L) return null;
@@ -898,7 +898,7 @@
       ctx.moveTo(hover.x, L.pad.t);
       ctx.lineTo(hover.x, this.h - L.pad.b);
       if (hover.y > L.bottom) {
-        // Survol du panneau RSI : on n'affiche pas de prix.
+        // Hovering the RSI pane: no price label.
         ctx.stroke();
         ctx.setLineDash([]);
         return;
@@ -911,9 +911,9 @@
       const i = Math.round((hover.x - L.pad.l) / L.step - 0.5 - L.offset);
       const k = L.c[i];
       if (k) {
-        const t = new Date(k.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const t = new Date(k.t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         const pat = this.showCoach && this.analysis && this.tf === 1 ? this.analysis.patterns.find((p) => p.t === k.t) : null;
-        const txt = `${t}   O ${fr(k.o, d)}   H ${fr(k.h, d)}   B ${fr(k.l, d)}   F ${fr(k.c, d)}${pat ? `   ·  ${pat.name}` : ''}`;
+        const txt = `${t}   O ${fr(k.o, d)}   H ${fr(k.h, d)}   L ${fr(k.l, d)}   C ${fr(k.c, d)}${pat ? `   ·  ${pat.name}` : ''}`;
         ctx.font = `600 12px ${C.num}`;
         ctx.textAlign = 'left';
         ctx.fillStyle = C.surface;
@@ -937,7 +937,7 @@
     // ------------------------------------------------------------------ Interactions
     hitLine(y) {
       if (!this.L) return null;
-      const tol = this.touch ? 14 : 7; // un doigt est moins précis qu'une souris
+      const tol = this.touch ? 14 : 7; // a finger is less precise than a mouse
       for (const o of this.orders) {
         if (Math.abs(this.L.Y(o.price) - y) <= tol) return { id: o.id, kind: 'order', side: o.side, price: o.price };
       }
@@ -1015,7 +1015,7 @@
           cb(Number(L.V(p.y).toFixed(this.opts.digits)));
           return;
         }
-        // Deuxième clic d'un tracé en deux temps
+        // Second click of a two-click drawing
         if (this.placing) {
           this.placing = false;
           this.commitDraft();
@@ -1067,7 +1067,7 @@
         } else if (this.creating) {
           const c = this.creating;
           this.creating = null;
-          // Simple clic : on termine le tracé au clic suivant (pratique à la souris).
+          // Single click: finish the drawing on the next click (handy with a mouse).
           if (Math.hypot(e.clientX - cv.getBoundingClientRect().left - c.x, e.clientY - cv.getBoundingClientRect().top - c.y) < 6) this.placing = true;
           else this.commitDraft();
         } else if (this.edit) {
@@ -1087,7 +1087,7 @@
           this.deleteSelected();
         }
       });
-      // Sur téléphone, le doigt fait défiler la page, sauf quand il attrape une ligne ou dessine.
+      // On phones, a finger scrolls the page unless it grabs a line or is drawing.
       cv.addEventListener('touchstart', (e) => {
         const t = e.touches[0];
         const r = cv.getBoundingClientRect();

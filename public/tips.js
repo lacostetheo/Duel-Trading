@@ -1,65 +1,65 @@
-// Rubrique « À savoir » : une notion de trading en quelques lignes, renouvelée toutes les 2 minutes.
+// "Did you know" panel: one market concept in a few lines, refreshed every two minutes.
 (function () {
   const TIPS = [
-    ['Lire une bougie', 'Corps = écart entre ouverture et clôture. Mèches = plus haut et plus bas atteints. Verte : clôture au-dessus de l’ouverture.'],
-    ['Les mèches', 'Une longue mèche montre un prix rejeté : mèche haute = vendeurs présents, mèche basse = acheteurs présents.'],
-    ['Le doji', 'Ouverture ≈ clôture : personne ne l’emporte. Après une longue hausse ou baisse, c’est souvent un signal d’hésitation.'],
-    ['Support', 'Niveau où les acheteurs reviennent. Plus il a été testé sans casser, plus il compte — jusqu’au jour où il cède.'],
-    ['Résistance', 'Niveau où les vendeurs reviennent. Une résistance cassée devient souvent un support (et inversement).'],
-    ['Le range', 'Le prix oscille entre deux bornes. On achète près du bas, on vend près du haut, stop juste de l’autre côté.'],
-    ['Fausse cassure', 'Le prix dépasse un niveau puis revient dedans. Attendre la clôture de la bougie évite beaucoup de pièges.'],
-    ['Tendance', 'Haussière : sommets et creux de plus en plus hauts. Tant que la structure tient, on cherche des achats sur repli.'],
-    ['RSI', 'Mesure la vitesse du mouvement (0 à 100). Au-dessus de 70 : surachat, sous 30 : survente. En forte tendance, il peut y rester.'],
-    ['Moyennes mobiles', 'Prix au-dessus de la MM20 et MM20 au-dessus de la MM50 : dynamique haussière. Le croisement inverse signale un essoufflement.'],
-    ['Bandes de Bollinger', 'Elles s’écartent quand la volatilité monte et se resserrent avant les gros mouvements. Un resserrement annonce souvent une cassure.'],
-    ['Le volume', 'Une cassure avec un gros volume est plus crédible. Sans volume, méfiance : le mouvement peut vite s’essouffler.'],
-    ['Le spread', 'Écart entre prix d’achat et de vente. On le paie à chaque entrée : une position démarre toujours légèrement perdante.'],
-    ['Le pip', 'Plus petite variation de prix suivie : 0,01 $ sur le pétrole, 0,0001 sur l’EUR/USD. Les SL et TP se comptent en pips.'],
-    ['Le lot', '1 lot de pétrole = 100 barils, 1 lot d’EUR/USD = 100 000 €. La taille fixe combien rapporte ou coûte chaque pip.'],
-    ['Le levier', 'Il réduit la marge bloquée, pas le risque. Avec ×10, 1 % de mouvement contre vous = 10 % de la mise.'],
-    ['La marge', 'Somme bloquée pour tenir une position. Si le compte ne la couvre plus, appel de marge, puis fermeture forcée à 50 %.'],
-    ['Stop-loss', 'Il se place là où l’idée de trade devient fausse (sous un support, au-dessus d’une résistance), pas à un chiffre rond au hasard.'],
-    ['Take-profit', 'Le placer avant un obstacle (résistance, sommet précédent) plutôt que juste après : le prix l’atteint plus souvent.'],
-    ['Ratio gain / risque', 'Avec un ratio de 1 pour 2, on peut perdre 6 trades sur 10 et rester gagnant. Le taux de réussite ne fait pas tout.'],
-    ['La règle des 1 %', 'Ne pas risquer plus de 1 à 2 % du capital par trade : 10 pertes d’affilée laissent encore 80 % du compte.'],
-    ['Pertes et remontée', 'Perdre 50 % demande +100 % pour revenir à zéro. Protéger le capital passe avant la recherche du gain.'],
-    ['Ordre limite', 'Achat sous le cours ou vente au-dessus : exécuté au prix choisi ou mieux, jamais de glissement.'],
-    ['Ordre stop', 'Achat au-dessus du cours ou vente en dessous : sert à entrer sur une cassure. Il devient un ordre au marché et peut glisser.'],
-    ['Le glissement', 'Écart entre le prix voulu et le prix obtenu. Il grossit avec la taille de l’ordre et quand le marché s’agite.'],
-    ['Le carnet d’ordres', 'Il montre les quantités en attente à chaque prix. Un gros « mur » freine souvent le prix, mais il peut être retiré.'],
-    ['Chasse aux stops', 'Les stops s’accumulent juste au-delà des sommets et des creux évidents. Le prix va souvent les chercher avant de repartir.'],
-    ['Stop au prix d’entrée', 'Une fois en gain, remonter le stop au prix d’entrée rend la position sans risque. Trop tôt, il se fait toucher souvent.'],
-    ['Stop suiveur', 'Le stop suit le prix à distance fixe et ne recule jamais. Idéal pour laisser courir une tendance.'],
-    ['Clôture partielle', 'Encaisser la moitié au premier objectif sécurise un gain tout en gardant une part pour un mouvement plus long.'],
-    ['Ne jamais éloigner son stop', 'Reculer un stop pour « laisser respirer » une position perdante transforme une petite perte en grosse perte.'],
-    ['Le surtrading', 'Multiplier les trades multiplie les spreads payés. Les meilleurs traders attendent les configurations claires.'],
-    ['Pétrole : le mercredi', 'Les stocks américains (EIA) sortent le mercredi à 16 h 30 : le pétrole peut bouger fortement en quelques minutes.'],
-    ['Pétrole : l’OPEP', 'Les décisions de production de l’OPEP+ et les tensions géopolitiques font les plus gros mouvements du baril.'],
-    ['L’or', 'Valeur refuge : il monte souvent quand l’inquiétude grimpe ou quand les taux réels baissent.'],
-    ['EUR/USD et banques centrales', 'Les décisions de la BCE et de la Fed sur les taux font les plus forts mouvements de l’euro-dollar.'],
-    ['L’emploi américain', 'Le rapport NFP, publié le premier vendredi du mois à 14 h 30, secoue le dollar, l’or et les indices.'],
-    ['Les sessions', 'Le marché s’agite à l’ouverture de Londres (9 h) et de New York (15 h 30). La nuit asiatique est souvent plus calme.'],
-    ['Le bitcoin', 'Il cote 24 h/24 et 7 j/7, avec une volatilité bien plus forte : d’où le levier limité à ×2 pour les particuliers.'],
-    ['Fibonacci', 'Après un mouvement, les replis s’arrêtent souvent vers 38,2 %, 50 % ou 61,8 %. À croiser avec un support pour plus de fiabilité.'],
-    ['Plusieurs unités de temps', 'Repérer la tendance en 5 minutes, entrer en 1 minute : on trade dans le sens du courant principal.'],
-    ['Le plan de trade', 'Avant d’entrer : où est l’entrée, où est le stop, où est l’objectif. Sans ces trois réponses, on n’entre pas.'],
+    ['Reading a candle', 'Body = gap between open and close. Wicks = highest and lowest prices traded. Green: the close is above the open.'],
+    ['Wicks', 'A long wick shows a rejected price: an upper wick means sellers stepped in, a lower wick means buyers did.'],
+    ['The doji', 'Open ≈ close: nobody wins. After a long rally or sell-off, it often signals indecision.'],
+    ['Support', 'A level where buyers come back. The more often it holds, the more it matters — until the day it breaks.'],
+    ['Resistance', 'A level where sellers come back. A broken resistance often turns into support (and vice versa).'],
+    ['Ranges', 'The price swings between two bounds. Buy near the bottom, sell near the top, with a stop just beyond the other side.'],
+    ['False breakouts', 'The price pierces a level and comes straight back. Waiting for the candle to close avoids many traps.'],
+    ['Trends', 'Uptrend: higher highs and higher lows. As long as that structure holds, look for buys on pullbacks.'],
+    ['RSI', 'Measures the speed of a move (0 to 100). Above 70: overbought, below 30: oversold. In a strong trend it can stay there.'],
+    ['Moving averages', 'Price above the 20 MA and the 20 above the 50: bullish momentum. The opposite cross signals a slowdown.'],
+    ['Bollinger Bands', 'They widen as volatility rises and squeeze before big moves. A squeeze often precedes a breakout.'],
+    ['Volume', 'A breakout on heavy volume is more credible. Without volume, be careful: the move can fade quickly.'],
+    ['The spread', 'The gap between bid and ask. You pay it on every entry: a new position always starts slightly in the red.'],
+    ['Pips', 'The smallest tracked price step: $0.01 on oil, 0.0001 on EUR/USD. Stops and targets are measured in pips.'],
+    ['Lots', '1 lot of oil = 100 barrels, 1 lot of EUR/USD = €100,000. Size sets how much each pip earns or costs.'],
+    ['Leverage', 'It reduces the margin you lock up, not the risk. At ×10, a 1% move against you costs 10% of the margin.'],
+    ['Margin', 'The amount locked to hold a position. When equity no longer covers it: margin call, then forced liquidation at 50%.'],
+    ['Stop-loss placement', 'Place it where your trade idea is proven wrong (below support, above resistance), not at a random round number.'],
+    ['Take-profit placement', 'Set it just before an obstacle (resistance, previous high) rather than just after: it gets hit more often.'],
+    ['Reward / risk', 'With a 1:2 ratio you can lose 6 trades out of 10 and still make money. Win rate is not everything.'],
+    ['The 1% rule', 'Risk no more than 1–2% of your equity per trade: ten losses in a row still leave 80% of the account.'],
+    ['Losses compound', 'Losing 50% takes a +100% gain to break even. Protecting capital comes before chasing returns.'],
+    ['Limit orders', 'Buy below or sell above the market: filled at your price or better, never with slippage.'],
+    ['Stop orders', 'Buy above or sell below the market to enter on a breakout. They become market orders and can slip.'],
+    ['Slippage', 'The gap between the price you wanted and the price you got. It grows with order size and when markets move fast.'],
+    ['The order book', 'It shows resting quantities at each price. A big “wall” often slows the price down, but it can be pulled.'],
+    ['Stop hunts', 'Stops cluster just beyond obvious highs and lows. Price often sweeps them before reversing.'],
+    ['Stop to entry', 'Once in profit, moving the stop to your entry makes the trade risk-free. Too early and it gets hit often.'],
+    ['Trailing stops', 'The stop follows the price at a fixed distance and never moves back. Ideal for riding a trend.'],
+    ['Partial closes', 'Banking half at the first target locks in a gain while keeping a share for a bigger move.'],
+    ['Never widen a stop', 'Moving a stop further away to “give it room” turns a small loss into a large one.'],
+    ['Overtrading', 'More trades means more spreads paid. The best traders wait for clear setups.'],
+    ['Oil on Wednesdays', 'US crude inventories (EIA) are released on Wednesdays at 10:30 am New York time: oil can move sharply within minutes.'],
+    ['Oil and OPEC', 'OPEC+ production decisions and geopolitical tensions drive the biggest moves in crude.'],
+    ['Gold', 'A safe haven: it often rises when fear increases or when real interest rates fall.'],
+    ['EUR/USD and central banks', 'ECB and Fed rate decisions drive the biggest moves in the euro-dollar.'],
+    ['US jobs report', 'Nonfarm payrolls, released on the first Friday of the month, shake the dollar, gold and stock indices.'],
+    ['Trading sessions', 'Markets wake up at the London (8 am) and New York (9:30 am) opens. The Asian session is often quieter.'],
+    ['Bitcoin', 'It trades 24/7 with much higher volatility: hence leverage capped at ×2 for retail traders in Europe.'],
+    ['Fibonacci', 'After a move, pullbacks often stall around 38.2%, 50% or 61.8%. Combine with a support level for confirmation.'],
+    ['Multiple timeframes', 'Read the trend on 5 minutes, enter on 1 minute: you trade with the main current.'],
+    ['The trade plan', 'Before entering: where is the entry, where is the stop, where is the target? Without all three, stay out.'],
   ];
   const PERIOD = 120000;
   const $ = (id) => document.getElementById(id);
   let idx = 0;
   let timer = 0;
-  try { idx = (Number(localStorage.getItem('duel.tip')) || Math.floor(Math.random() * TIPS.length)) % TIPS.length; } catch { /* indisponible */ }
+  try { idx = (Number(localStorage.getItem('duel.tip')) || Math.floor(Math.random() * TIPS.length)) % TIPS.length; } catch { /* storage unavailable */ }
 
   function show(i) {
     idx = (i + TIPS.length) % TIPS.length;
-    try { localStorage.setItem('duel.tip', String((idx + 1) % TIPS.length)); } catch { /* indisponible */ }
+    try { localStorage.setItem('duel.tip', String((idx + 1) % TIPS.length)); } catch { /* storage unavailable */ }
     const [title, text] = TIPS[idx];
     $('tipTitle').textContent = title;
     $('tipText').textContent = text;
     $('tipNum').textContent = `${idx + 1} / ${TIPS.length}`;
     const bar = $('tipBar');
     bar.style.animation = 'none';
-    void bar.offsetWidth; // relance la barre de progression
+    void bar.offsetWidth; // restart the progress bar
     bar.style.animation = `tipProgress ${PERIOD / 1000}s linear`;
     clearTimeout(timer);
     timer = setTimeout(() => show(idx + 1), PERIOD);

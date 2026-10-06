@@ -1,4 +1,4 @@
-// Couleurs de l'interface, lues dans base.css, pour les dessins du graphique (canvas).
+// UI colours read from base.css, for the canvas chart.
 (function () {
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   window.Theme = {

@@ -1,7 +1,7 @@
 {
   "name": "duel-trading",
   "version": "1.0.0",
-  "description": "Duel : défi de trading en temps réel entre amis sur le même Wi-Fi, ou en solo.",
+  "description": "DUEL — real-time multiplayer trading simulator: live prices, order book, leverage, margin and stop-loss.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

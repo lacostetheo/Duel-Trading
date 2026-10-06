@@ -1,5 +1,5 @@
-// Duel — défi de trading entre amis sur le même Wi-Fi (ou en solo).
-// Serveur sans dépendance : interface, parties en direct (SSE), ordres (POST).
+// DUEL — real-time multiplayer trading simulator (solo, on a local network, or online).
+// Dependency-free server: static UI, live game streams (SSE) and orders (POST).
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
@@ -24,7 +24,7 @@ function isLocal(req) {
   return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
 }
 
-// Adresses de cet ordinateur sur le réseau local, pour inviter un ami sur le même Wi-Fi.
+// This machine's local network addresses, used to invite a friend on the same Wi-Fi.
 function lanUrls() {
   const out = [];
   for (const list of Object.values(os.networkInterfaces())) {
@@ -53,9 +53,9 @@ function readBody(req) {
 function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const file = path.normalize(path.join(PUBLIC, urlPath === '/' ? 'index.html' : urlPath));
-  if (!file.startsWith(PUBLIC)) return sendJson(res, 403, { error: 'interdit' });
+  if (!file.startsWith(PUBLIC)) return sendJson(res, 403, { error: 'forbidden' });
   fs.readFile(file, (err, buf) => {
-    if (err) return sendJson(res, 404, { error: 'introuvable' });
+    if (err) return sendJson(res, 404, { error: 'not found' });
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(buf);
   });
@@ -76,26 +76,26 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, game.joinGame(String(b.code || '').trim(), b.name));
     }
     if (m && m[2] === 'stream') {
-      if (!game.stream(m[1], searchParams.get('token'), res)) sendJson(res, 404, { error: 'Partie introuvable.' });
+      if (!game.stream(m[1], searchParams.get('token'), res)) sendJson(res, 404, { error: 'Game not found.' });
       return;
     }
     if (m && m[2] === 'action' && req.method === 'POST') {
       return sendJson(res, 200, await game.action(m[1], JSON.parse((await readBody(req)) || '{}')));
     }
-    return sendJson(res, 404, { error: 'introuvable' });
+    return sendJson(res, 404, { error: 'not found' });
   } catch (e) {
     return sendJson(res, 400, { error: e.message });
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  Duel · trading entre amis → http://localhost:${PORT}`);
+  console.log(`\n  DUEL · trading simulator → http://localhost:${PORT}`);
   const lan = lanUrls();
-  if (lan.length) console.log(`  Sur le même Wi-Fi : ${lan.map((u) => u).join('  ')}`);
+  if (lan.length) console.log(`  On the same Wi-Fi: ${lan.join('  ')}`);
   console.log('');
 });
 server.on('error', (e) => {
-  if (e.code === 'EADDRINUSE') console.error(`\n  Le port ${PORT} est déjà utilisé : Duel tourne peut-être déjà (Ctrl + C dans l'autre Terminal).\n`);
+  if (e.code === 'EADDRINUSE') console.error(`\n  Port ${PORT} is already in use: DUEL may already be running (press Ctrl + C in the other terminal).\n`);
   else console.error(e);
   process.exit(1);
 });

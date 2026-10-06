@@ -1,99 +1,98 @@
-# DUEL — simulateur de trading multijoueur en temps réel
+# DUEL — Real-Time Multiplayer Trading Simulator
 
-**▶ [Jouer en ligne](https://duel-trading.onrender.com)** · hébergement gratuit : le premier chargement peut prendre 30 à 60 secondes (le serveur se réveille).
+**▶ [Play online](https://duel-trading.onrender.com)** · free hosting: the first load can take 30–60 seconds while the server wakes up.
 
-Plateforme de trading pédagogique : chaque joueur reçoit un compte démo de 10 000 € et trade le pétrole, l'or, l'EUR/USD
-ou le bitcoin sur des **prix réels**, en solo ou en duel contre des amis. Le classement se fait à la performance.
-L'objectif : apprendre en pratiquant ce qu'on lit dans les manuels — effet de levier, marge, stop-loss, ratio
-gain/risque, carnet d'ordres, liquidité — avec des règles proches de celles d'un vrai courtier.
+An educational trading platform: every player gets a €10,000 demo account and trades crude oil, gold, EUR/USD or
+bitcoin on **live market prices**, solo or head-to-head against friends. Players are ranked by performance.
+The goal is to learn by doing what textbooks describe — leverage, margin, stop-losses, reward-to-risk, order books,
+liquidity — under rules close to those of a real broker.
 
-![Partie en cours : graphique, carnet d'ordres du bitcoin, ticket d'ordre et positions](docs/game.png)
+![Live game: chart, bitcoin order book, order ticket and positions](docs/game.png)
 
-## Ce que fait la plateforme
+## Features
 
-**Marché**
-- Prix en direct : Yahoo Finance (pétrole WTI et Brent, or, EUR/USD) et Binance (bitcoin). Hors séance, bascule
-  automatique sur une simulation réaliste qui alterne phases de tendance et de range.
-- **Carnet d'ordres réel du bitcoin** (Binance) : niveaux agrégés, murs, déséquilibre acheteurs/vendeurs, profondeur
-  dessinée le long de l'échelle de prix.
+**Market data**
+- Live prices from Yahoo Finance (WTI and Brent crude, gold, EUR/USD) and Binance (bitcoin). When a market is closed,
+  the game switches automatically to a realistic simulation that alternates trending and ranging regimes.
+- **Live bitcoin order book** (Binance): aggregated levels, walls, bid/ask imbalance, and depth drawn along the price axis.
 
-**Exécution réaliste**
-- Ordres au marché, **ordres limite et stop**, stop-loss et take-profit déplaçables directement sur le graphique.
-- **Glissement** calculé en « consommant » le carnet réel pour le bitcoin, selon un modèle de profondeur pour les autres actifs.
-- **Spread dynamique** qui s'élargit quand la volatilité augmente.
-- Levier plafonné aux limites réglementaires européennes pour les particuliers (×30 EUR/USD, ×20 or, ×10 pétrole, ×2 bitcoin).
-- Marge, appel de marge à 100 %, liquidation forcée à 50 % de niveau de marge.
-- Gestion de position : stop au prix d'entrée, clôture partielle, stop suiveur.
-- Calcul de la taille de position à partir du risque souhaité (0,5 / 1 / 2 % du capital).
+**Realistic execution**
+- Market, **limit and stop orders**, with stop-loss and take-profit levels you can drag directly on the chart.
+- **Slippage** computed by walking the real order book for bitcoin, and from a depth model for other assets.
+- **Dynamic spread** that widens as volatility rises.
+- Leverage capped at EU retail limits (×30 EUR/USD, ×20 gold, ×10 oil, ×2 bitcoin).
+- Margin, margin call at 100% and forced liquidation at a 50% margin level.
+- Position management: stop to entry, partial close, trailing stop.
+- Position sizing from the risk you choose (0.5% / 1% / 2% of equity).
 
-**Analyse**
-- Graphique en bougies 1 et 5 minutes, dessiné sur canvas : moyennes mobiles 20/50, bandes de Bollinger, RSI 14, volume.
-- Détection automatique des supports, résistances, ranges, tendances, figures de bougies et **zones de liquidité**.
-- Outils de dessin : ligne horizontale, oblique, zone, retracement de Fibonacci.
-- Rubrique « À savoir » : une notion de marché expliquée en quelques lignes, renouvelée toutes les deux minutes.
+**Analysis**
+- 1- and 5-minute candlestick chart drawn on canvas: 20/50 moving averages, Bollinger Bands, RSI 14, volume.
+- Automatic detection of support and resistance, ranges, trends, candle patterns and **liquidity zones**.
+- Drawing tools: horizontal line, trend line, zone, Fibonacci retracement.
+- A "Did you know" panel explaining one market concept in a few lines, refreshed every two minutes.
 
-**Jeu**
-- Parties de 5 à 60 minutes, jusqu'à 4 joueurs, invitation par lien ou par code.
-- Bilan de fin de partie : classement, taux de réussite, meilleur et pire trade, ratio moyen, drawdown maximal,
-  points d'amélioration.
-- Interface responsive : jouable sur téléphone.
+**Game**
+- 5- to 60-minute games, up to 4 players, invitation by link or code.
+- End-of-game report: ranking, win rate, best and worst trade, average reward/risk, maximum drawdown, and tips.
+- Responsive interface: playable on a phone.
 
-| Accueil | Bilan | Téléphone |
+| Lobby | Results | Mobile |
 |---|---|---|
-| ![Création de partie](docs/lobby.png) | ![Résultats](docs/results.png) | ![Version mobile](docs/mobile.png) |
+| ![Create a game](docs/lobby.png) | ![Results](docs/results.png) | ![Mobile version](docs/mobile.png) |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Y[Yahoo Finance] --> F[Flux de prix<br/>lib/feeds.js]
-  B[Binance<br/>prix + carnet] --> F
+  Y[Yahoo Finance] --> F[Price feeds<br/>lib/feeds.js]
+  B[Binance<br/>price + order book] --> F
   S[Simulation] --> F
-  F -->|tick| G[Moteur de partie<br/>lib/game.js]
-  G -->|SSE : prix, comptes, classement| C1[Navigateur joueur 1]
-  G -->|SSE| C2[Navigateur joueur 2]
-  C1 -->|POST : ordres| G
-  C2 -->|POST : ordres| G
+  F -->|tick| G[Game engine<br/>lib/game.js]
+  G -->|SSE: prices, accounts, ranking| C1[Player 1 browser]
+  G -->|SSE| C2[Player 2 browser]
+  C1 -->|POST: orders| G
+  C2 -->|POST: orders| G
 ```
 
-- **Serveur arbitre** : les prix, l'exécution des ordres, les stops, la marge et le classement sont calculés côté serveur.
-  Tous les joueurs voient exactement le même marché et personne ne peut tricher depuis son navigateur.
-- **Temps réel par Server-Sent Events** : un flux unidirectionnel suffit pour diffuser les prix, et les ordres passent par
-  de simples requêtes POST. Les prix sont diffusés jusqu'à une fois par seconde, et un ordre apparaît chez l'adversaire en environ 50 ms en local.
-- **Zéro dépendance** : serveur Node.js natif (module `http`), interface en HTML/CSS/JavaScript sans framework.
-  Rien à installer, démarrage instantané.
-- **Fluidité** : le graphique n'est redessiné que lorsqu'un prix change ou que l'utilisateur interagit, et l'analyse
-  technique (niveaux, range, tendance, figures) n'est recalculée qu'à chaque nouvelle bougie.
-- **Robustesse** : délais maximaux sur toutes les sources, bascule automatique en simulation, horloge synchronisée sur
-  celle du serveur (les appareils dont l'heure est décalée affichent le même compte à rebours).
+- **Server as referee**: prices, order execution, stops, margin and rankings are all computed server-side, so every
+  player sees exactly the same market and nobody can cheat from the browser.
+- **Real time with Server-Sent Events**: a one-way stream is enough to broadcast prices, while orders go through plain
+  POST requests. Prices are pushed up to once per second, and an order shows up on the opponent's screen in about 50 ms
+  on a local network.
+- **Zero dependencies**: native Node.js server (`http` module) and a framework-free HTML/CSS/JavaScript front end.
+  Nothing to install, instant start-up.
+- **Smooth rendering**: the chart is only redrawn when a price changes or the user interacts, and the technical analysis
+  (levels, ranges, trends, patterns) is only recomputed on each new candle.
+- **Resilience**: hard timeouts on every data source, automatic fallback to simulation, and a client clock synced to the
+  server's, so devices with a skewed clock show the same countdown.
 
-## Lancer en local
+## Run locally
 
-Prérequis : [Node.js](https://nodejs.org) 18 ou plus.
+Requirements: [Node.js](https://nodejs.org) 18 or later.
 
 ```bash
-git clone https://github.com/<votre-compte>/duel-trading.git
+git clone https://github.com/lacostetheo/duel-trading.git
 cd duel-trading
 npm start
 # → http://localhost:3001
 ```
 
-Sur un réseau local, le terminal affiche l'adresse à partager pour jouer à plusieurs (ex. `http://192.168.1.20:3001`).
+On a local network, the terminal also prints the address other players can open (e.g. `http://192.168.1.20:3001`).
 
-## Structure
+## Project structure
 
 ```
-server.js          serveur HTTP : pages, flux de partie (SSE), ordres
-lib/feeds.js       sources de prix, volume, carnet d'ordres, spread dynamique, simulation
-lib/game.js        moteur : comptes, ordres, stops, ordres en attente, marge, glissement, classement, bilan
-lib/http.js        requêtes réseau avec délai maximal
-public/            interface : graphique (trade-chart.js), analyse technique (coach.js), ticket et comptes (trade.js)
+server.js          HTTP server: pages, game streams (SSE), orders
+lib/feeds.js       price sources, volume, order book, dynamic spread, simulation
+lib/game.js        engine: accounts, orders, stops, pending orders, margin, slippage, ranking, report
+lib/http.js        network requests with a hard timeout
+public/            front end: chart (trade-chart.js), technical analysis (coach.js), order ticket and accounts (trade.js)
 ```
 
-## À propos
+## About
 
-Projet personnel conçu par **Théo Lacoste** pour apprendre les mécanismes des marchés en les pratiquant.
-J'ai défini le produit, les règles de marché et l'expérience utilisateur, et j'ai développé le code avec l'assistant
-de programmation **Claude Code** (IA d'Anthropic).
+A personal project by **Théo Lacoste**, built to learn how markets work by practising.
+I designed the product, the market rules and the user experience, and developed the code with the AI coding assistant
+**Claude Code** (Anthropic).
 
-*Argent fictif, à but pédagogique uniquement : rien ici ne constitue un conseil en investissement.*
+*Play money, for educational purposes only: nothing here is investment advice.*
