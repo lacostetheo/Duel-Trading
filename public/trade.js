@@ -271,7 +271,7 @@
     const b = book;
     if (!b || !asset || !asset.book) return;
     chart.setBook(b);
-    $('bookSrc').textContent = b.sim ? 'SIMULATED' : 'BINANCE · LIVE';
+    $('bookSrc').textContent = b.sim ? 'SIMULATED' : `${b.src || 'BINANCE'} · LIVE`;
     $('bookSrc').className = b.sim ? 'tag warn' : 'tag live';
     const N = 14;
     const asks = b.asks.slice(0, N);

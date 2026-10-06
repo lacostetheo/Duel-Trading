@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const game = require('./lib/game');
+const { feedStatus } = require('./lib/feeds');
 
 const PORT = Number(process.env.PORT) || 3001;
 const PUBLIC = path.join(__dirname, 'public');
@@ -66,6 +67,7 @@ const server = http.createServer(async (req, res) => {
   if (!pathname.startsWith('/api/')) return serveStatic(req, res);
   const m = pathname.match(/^\/api\/game\/(\d{4})\/(stream|action)$/);
   try {
+    if (pathname === '/api/status') return sendJson(res, 200, { feeds: feedStatus() });
     if (pathname === '/api/game/lan') return sendJson(res, 200, { urls: lanUrls(), local: isLocal(req) });
     if (pathname === '/api/game/create' && req.method === 'POST') {
       const b = JSON.parse((await readBody(req)) || '{}');
